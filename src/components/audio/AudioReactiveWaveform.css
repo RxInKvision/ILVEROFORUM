@@ -1,0 +1,38 @@
+/* src/components/audio/AudioReactiveWaveform.css */
+.waveform-logo-container {
+    display: flex;
+    /* align-items: center; Vertically centers the slots themselves if they don't take full height */
+    /* Replaced center with stretch to make slots take full height of container */
+    align-items: stretch; /* Bar slots will stretch to this height */
+    min-width: 0; /* Prevents flex items from overflowing container in some cases */
+    box-sizing: border-box;
+    overflow: visible; /* Allow scaled content to be seen if it exceeds original bounds */
+    /* height and width are set by inline style from the component */
+    /* transform and transform-origin can be added here or inline if needed for global scaling/positioning of the whole waveform */
+  }
+  
+  .waveform-bar-slot {
+    display: flex;
+    flex-direction: column; /* Stack the two inner bars vertically */
+    justify-content: center; /* Center the stacked bars vertically within the slot */
+    align-items: stretch;   /* Stretch the inner bars horizontally to fill slot width */
+    height: 100%;           /* Slot takes full height of .waveform-logo-container */
+    position: relative; /* For potential future absolute positioning inside if needed */
+    /* width is set by inline style from the component */
+    flex-shrink: 0; /* Prevent slots from shrinking */
+  }
+  
+  .waveform-reactive-bar {
+    width: 100%; /* Bar takes full width of its slot */
+    transition: none; /* Option 1: Remove CSS transition entirely */
+    min-height: 0.5px; /* Minimum visible height, can be same as initial resting height */
+    /* backgroundColor is set by inline style from the component */
+  }
+  
+  .waveform-spacer {
+    /* width is set by inline style from the component */
+    flex-shrink: 0; /* Prevent spacers from shrinking */
+    height: 1px; /* Minimal height, just for spacing */
+    align-self: center; /* Vertically center the spacer line itself */
+    background-color: transparent; /* Spacers are invisible gaps */
+  }

@@ -1,0 +1,295 @@
+/* src/styles/App.css */
+
+/*
+=================================================
+NUOVE REGOLE PER IL CURSORE PERSONALIZZATO
+- Aggiunte senza modificare gli stili esistenti
+=================================================
+*/
+
+/* Nasconde il cursore di sistema e lo sostituisce con il nostro */
+html, body, .app, .app * {
+  cursor: none !important;
+}
+
+/* Stile base del cursore personalizzato */
+.custom-cursor {
+  position: fixed;
+  width: 25px;
+  height: 25px;
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: none;
+  z-index: 9999;
+  /* Transizioni per movimento e animazione al click */
+  transition: transform 0.2s ease-out, width 0.2s ease-out, height 0.2s ease-out;
+  /* Posizione iniziale fuori schermo per evitare flash al caricamento */
+  top: -100px; 
+  left: -100px;
+}
+
+/* Stile per l'animazione al click: il cursore si allarga */
+.custom-cursor.clicked {
+  transform: translate(-50%, -50%) scale(1.4);
+}
+
+
+/*
+=================================================
+I TUOI STILI ORIGINALI (COPIATI ESATTAMENTE)
+=================================================
+*/
+
+:root {
+  --console-font-family: 'Source Code Pro', monospace;
+  --console-base-font-size: 11px;
+  --console-text-primary-color: rgb(215, 215, 220);
+  --console-text-secondary-color: rgb(190, 190, 195);
+  --console-text-tertiary-color: rgb(170, 170, 175);
+  --console-accent-color: rgb(255, 99, 71); /* tomato-like color */
+  --console-accent-color-hover: rgb(255, 109, 81);
+  --console-accent-color-active-bg: rgba(255, 99, 71, 0.55);
+  --console-accent-color-active-border: rgba(255, 99, 71, 0.7);
+  --console-accent-color-shadow: rgba(255, 99, 71, 0.2);
+
+  --console-bg-base: rgba(22, 22, 24, 0.95);
+  --console-bg-actions: rgba(15, 15, 18, 0.8);
+  --console-bg-module: rgba(38, 38, 42, 0.85);
+  --console-bg-module-header: rgba(50, 50, 55, 0.7);
+  --console-bg-module-header-hover: rgba(60, 60, 65, 0.8);
+  --console-bg-module-content: rgba(30, 30, 33, 0.5);
+
+  --console-border-primary: rgba(55, 55, 60, 0.9);
+  --console-border-secondary: rgba(65, 65, 70, 0.8);
+  --console-border-tertiary: rgba(50, 50, 55, 0.7);
+
+  --console-btn-bg: rgba(65, 65, 70, 0.7);
+  --console-btn-border: rgba(85, 85, 90, 0.7);
+  --console-btn-hover-bg: rgba(75, 75, 80, 0.8);
+  --console-btn-hover-border: rgba(95, 95, 100, 0.8);
+  --console-btn-active-bg: rgba(55, 55, 60, 0.8);
+
+  --console-label-font-size: 10px;
+  --console-input-font-size: 10px;
+
+  --app-font-size-base: 12px;
+  --app-font-size-small: 10px;
+  --app-font-size-large: 14px;
+
+  /* Logo specific variables */
+  --logo-height: 30px; /* Your current size */
+  --logo-top-padding: 12px; /* Your current padding */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--console-font-family);
+  background-color: rgb(18, 18, 20);
+  color: var(--console-text-primary-color);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  line-height: 1.5;
+  font-size: var(--app-font-size-base);
+}
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Loading overlay styles */
+.loading-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(10, 10, 12, 0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(3px);
+}
+
+.loading-spinner {
+  border: 3px solid rgba(180, 180, 185, 0.3);
+  border-radius: 50%;
+  border-top: 3px solid var(--console-text-primary-color);
+  width: 45px;
+  height: 45px;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 25px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+  font-size: var(--app-font-size-large);
+  letter-spacing: 0.5px;
+  color: var(--console-text-secondary-color);
+  font-family: var(--console-font-family);
+}
+
+.audio-player {
+  position: fixed; bottom: 15px; left: 15px; background-color: var(--console-bg-module);
+  border-radius: 5px; padding: 8px 12px; display: flex; align-items: center;
+  z-index: 1050; backdrop-filter: blur(8px); box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  border: 1px solid var(--console-border-secondary); font-family: var(--console-font-family);
+}
+/* ... other .audio-player related legacy styles if any ... */
+
+
+/* App Logo Styles */
+.app-logo-container {
+  position: fixed;
+  top: var(--logo-top-padding);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 101; 
+  mix-blend-mode: difference;
+}
+
+.app-logo {
+  display: block;
+  height: var(--logo-height); 
+  width: auto; 
+  mix-blend-mode: difference; /* Added for "negative" effect */
+}
+
+/* Canvas container */
+.canvas-container {
+  width: 100%;
+  height: 100vh;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1; 
+}
+
+/* Gallery controls */
+.gallery-controls {
+  position: fixed;
+  top: 10px; 
+  right: 10px;
+  z-index: 100; 
+  display: flex;
+  gap: 8px;
+  background-color: rgba(0,0,0,0.3);
+  padding: 5px 8px;
+  border-radius: 6px;
+  opacity: 0.8;
+  transition: opacity 0.25s ease;
+}
+.gallery-controls:hover {
+  opacity: 1;
+}
+.app.light-theme-active .gallery-controls {
+  background-color: rgba(255,255,255,0.4);
+}
+.gallery-control-btn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: white; 
+  padding: 6px 10px;
+  border-radius: 4px;
+  /* cursor: pointer; */ /* Rimosso per non interferire con il cursore custom */
+  font-size: 0.9em;
+  font-family: var(--console-font-family);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.gallery-control-btn:hover {
+  background: rgba(255,255,255,0.2);
+  transform: translateY(-1px);
+}
+.gallery-control-btn:active {
+  transform: translateY(0px);
+}
+.app.light-theme-active .gallery-control-btn {
+  background: rgba(0,0,0,0.05);
+  border: 1px solid rgba(0,0,0,0.1);
+  color: #333; /* Note: This color won't work well with mix-blend-mode if applied to buttons */
+}
+.app.light-theme-active .gallery-control-btn:hover {
+  background: rgba(0,0,0,0.1);
+}
+
+/* App info overlay */
+.app-info {
+  position: fixed;
+  top: 14px;   
+  left: 10px;
+  font-size: 0.75em;
+  color: #ffffff; /* Set to white for difference mode to work correctly */
+  z-index: 90; 
+  background-color: transparent; /* Ensure background is transparent */
+  padding: 3px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+  font-family: var(--console-font-family);
+  mix-blend-mode: difference; /* Added for "negative" effect */
+}
+.app.light-theme-active .app-info {
+  /* Color is now consistently white from the rule above */
+  /* background-color is transparent from the rule above */
+  /* border was transparent, can be removed or explicitly set to none */
+  border: none; 
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  body {
+    font-size: calc(var(--app-font-size-base) - 1px);
+  }
+
+  /* Update logo variables for smaller screens */
+  :root {
+    --logo-height: 20px; /* Your current size for mobile */
+    --logo-top-padding: 8px; /* Your current padding for mobile */
+  }
+
+  .gallery-controls {
+    gap: 6px;
+    /* Adjust top if overlapping with logo:
+       top: calc(var(--logo-height) + var(--logo-top-padding) + 10px); 
+    */
+  }
+  .gallery-control-btn {
+    font-size: 0.8em;
+    padding: 5px 8px;
+  }
+
+  .app-info {
+    font-size: calc(var(--console-label-font-size) - 0.5px);
+    padding: 5px 12px;
+    top: 5px;     
+    /* Adjust top if overlapping with logo:
+       top: calc(var(--logo-height) + var(--logo-top-padding) + 5px); 
+    */
+    left: 5px;    
+  }
+
+  .loading-text {
+    font-size: calc(var(--app-font-size-large) - 2px);
+  }
+}
+
+/* Removed border animation CSS comment as it's no longer relevant */

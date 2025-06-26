@@ -1,0 +1,9 @@
+export enum LAYOUT_TYPES {
+  GRID = 'GRID',
+  COLUMN = 'COLUMN',
+  ROW = 'row',
+  SPIRAL = 'SPIRAL',
+  RANDOM_3D = 'RANDOM_3D',
+  SPHERE_SURFACE = 'SPHERE_SURFACE',
+  TUBE = 'TUBE',
+}

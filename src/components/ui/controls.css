@@ -1,0 +1,379 @@
+/* Base styles for the control console - MINIMAL BLACK & WHITE THEME V3 (Focus on Flex Grow) */
+:root {
+  --console-font-family: 'Source Code Pro', monospace;
+  --console-base-font-size: 11px;
+  --console-text-primary-color: rgb(220, 220, 225);
+  --console-text-secondary-color: rgb(165, 165, 170);
+  --console-text-tertiary-color: rgb(130, 130, 135);
+  --console-text-inverted-color: rgb(10, 10, 12);
+
+  --console-active-bg-color: rgba(200, 200, 205, 0.85);
+  --console-active-border-color: rgba(220, 220, 225, 0.9);
+  --console-hover-bg-color: rgba(85, 85, 90, 0.8);
+  --console-hover-border-color: rgba(105, 105, 110, 0.9);
+
+  --console-bg-base: rgba(18, 18, 20, 0.85);
+  --console-bg-actions: rgba(22, 22, 24, 0.88);
+  --console-bg-module: rgba(30, 30, 33, 0.82);
+  --console-bg-module-header: rgba(38, 38, 42, 0.85);
+  --console-bg-module-header-hover: rgba(48, 48, 52, 0.9);
+  --console-bg-module-content: rgba(25, 25, 28, 0.7); /* Slightly less transparent for content */
+
+  --console-border-primary: rgba(55, 55, 60, 0.9);
+  --console-border-secondary: rgba(65, 65, 70, 0.8);
+  --console-border-tertiary: rgba(50, 50, 55, 0.7);
+
+  --console-btn-bg: rgba(55, 55, 60, 0.75);
+  --console-btn-border: rgba(75, 75, 80, 0.8);
+  /* ... other button state variables ... */
+
+  --console-label-font-size: 10px;
+  --console-input-font-size: 10px;
+
+  --blur-intensity: 8px;
+  --blur-intensity-strong: 12px;
+
+  /* Spacing variables - More generous internal, still tight for controls */
+  --console-outer-padding: 6px; /* Padding for .console-modules container */
+  --module-header-padding-y: 5px;
+  --module-header-padding-x: 8px;
+  --module-content-padding: 8px;   /* INCREASED internal padding for module content */
+
+  --console-gap-xxs: 2px;
+  --console-gap-xs: 3px;
+  --console-gap-s: 5px; /* Standard gap between modules / larger groups */
+  --control-margin-bottom: 5px;
+  --control-margin-bottom-s: 4px;
+}
+
+.control-console {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  display: flex; flex-direction: column;
+  background-color: var(--console-bg-base);
+  backdrop-filter: blur(var(--blur-intensity-strong));
+  box-shadow: 0 -1px 8px rgba(0, 0, 0, 0.3);
+  font-family: var(--console-font-family);
+  font-size: var(--console-base-font-size);
+  z-index: 1001;
+  border-top: 1px solid var(--console-border-primary);
+  color: var(--console-text-primary-color);
+  overflow: hidden;
+  will-change: height;
+}
+
+.console-drag-handle {
+  width: 100%; height: 10px; position: absolute;
+  top: -5px; left: 0; cursor: ns-resize; z-index: 1001;
+}
+.control-console.compact-mode .console-drag-handle { cursor: default; }
+
+.control-console.compact-mode {
+  height: 38px !important;
+  transition: height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.console-actions {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 4px 8px;
+  background-color: var(--console-bg-actions);
+  border-bottom: 1px solid var(--console-border-tertiary);
+  position: relative; z-index: 1; flex-shrink: 0;
+  height: 34px;
+  box-sizing: border-box;
+}
+
+.console-action-btn {
+  width: 24px; height: 24px; border-radius: 3px;
+  background-color: rgba(70, 70, 75, 0.5);
+  border: 1px solid rgba(90, 90, 95, 0.6);
+  color: var(--console-text-secondary-color);
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  margin-left: var(--console-gap-s);
+  font-family: var(--console-font-family); font-size: 12px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease, color 0.15s ease;
+}
+.console-action-btn:hover {
+  background-color: rgba(85, 85, 90, 0.6); border-color: rgba(105, 105, 110, 0.7);
+  color: var(--console-text-primary-color);
+}
+.console-action-btn:active { background-color: rgba(60, 60, 65, 0.7); transform: scale(0.95); }
+
+.console-modules {
+  display: flex; /* Key for horizontal layout of modules */
+  flex-direction: row;
+  /* flex-wrap: nowrap; /* Usually desired, but can be wrap if panels should stack on smaller viewports */
+  overflow-x: auto; /* Allows scrolling if sum of flex-basis/min-width exceeds container */
+  overflow-y: hidden;
+  padding: var(--console-outer-padding);
+  gap: var(--console-gap-s);
+  height: calc(100% - 34px); /* Height of parent minus action bar */
+  flex-grow: 1; /* Takes up remaining vertical space */
+}
+.console-modules::-webkit-scrollbar { height: 5px; width: 5px; } /* Slightly more visible scrollbar */
+.console-modules::-webkit-scrollbar-track { background: rgba(20, 20, 22, 0.2); border-radius: 2.5px;}
+.console-modules::-webkit-scrollbar-thumb { background: rgba(100, 100, 105, 0.5); border-radius: 2.5px; }
+.console-modules::-webkit-scrollbar-thumb:hover { background: rgba(120, 120, 125, 0.6); }
+
+.module-panel {
+  background-color: var(--console-bg-module);
+  backdrop-filter: blur(var(--blur-intensity));
+  border-radius: 4px; /* Slightly larger radius for more padded look */
+  border: 1px solid var(--console-border-secondary);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2); /* Slightly more prominent shadow for depth */
+  overflow: hidden; /* Essential */
+  transition: box-shadow 0.2s ease, opacity 0.3s ease, flex-basis 0.3s ease, min-width 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%; /* Fill the height of .console-modules */
+  box-sizing: border-box;
+}
+
+.module-panel.module-open {
+  flex-grow: 1; /* <<< KEY: Allow panel to grow and fill available space */
+  flex-shrink: 1; /* Allow panel to shrink if needed */
+  flex-basis: 220px; /* Preferred starting width; will grow from this */
+  min-width: 180px; /* Smallest it can shrink to before .console-modules scrolls */
+  /* max-width: 450px; /* Optional: cap max width if desired, otherwise remove to fill */
+}
+
+.module-panel.module-closed {
+  flex-grow: 0; /* Don't grow when closed */
+  flex-shrink: 0; /* Don't shrink when closed */
+  width: 40px;
+  min-width: 40px;
+  cursor: pointer;
+  background-color: rgba(30, 30, 33, 0.7);
+}
+.module-panel.module-closed:hover { background-color: rgba(38, 38, 42, 0.75); }
+
+.module-panel.active-panel {
+  border-color: var(--console-active-border-color);
+  box-shadow: 0 0 6px rgba(200, 200, 205, 0.15), 0 0 0 1px var(--console-active-border-color);
+}
+
+.module-header {
+  display: flex; align-items: center;
+  padding: var(--module-header-padding-y) var(--module-header-padding-x); /* Using new padding vars */
+  cursor: pointer;
+  background-color: var(--console-bg-module-header);
+  border-bottom: 1px solid var(--console-border-secondary);
+  transition: background-color 0.15s ease;
+  flex-shrink: 0;
+  min-height: 28px; /* Slightly more comfortable header height */
+  box-sizing: border-box;
+}
+.module-panel.module-closed .module-header {
+  border-bottom: none; writing-mode: vertical-rl; transform: rotate(180deg);
+  justify-content: center; width: 100%; height: 100%;
+  padding: var(--console-gap-s) var(--console-gap-xs);
+}
+
+.module-header:hover { background-color: var(--console-bg-module-header-hover); }
+
+.module-header h3 {
+  margin: 0; font-size: 10px; font-weight: 500; text-transform: uppercase;
+  letter-spacing: 0.4px; color: var(--console-text-primary-color);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  flex-grow: 1;
+}
+.module-panel.module-closed .module-header h3 { font-size: 9.5px; line-height: 1.1; }
+
+.module-toggle {
+  font-size: 10px; color: var(--console-text-tertiary-color);
+  margin-left: var(--console-gap-s); padding: 1px;
+}
+.module-panel.module-closed .module-header .module-toggle { display: none; }
+
+.module-content {
+  padding: var(--module-content-padding); /* <<< KEY: More generous internal padding */
+  background-color: var(--console-bg-module-content);
+  overflow-y: auto; /* Handles vertical scrolling within module */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(100, 100, 105, 0.4) rgba(25, 25, 28, 0.2);
+  flex-grow: 1; /* Takes available vertical space in module */
+  min-height: 0; /* Allows shrinking */
+}
+.module-content::-webkit-scrollbar { width: 4px; }
+.module-content::-webkit-scrollbar-track { background: rgba(25, 25, 28, 0.2); border-radius: 2px; }
+.module-content::-webkit-scrollbar-thumb { background: rgba(100, 100, 105, 0.4); border-radius: 2px; }
+.module-content::-webkit-scrollbar-thumb:hover { background: rgba(120, 120, 125, 0.5); }
+
+.compact-mode .console-modules { display: none; }
+
+.control-slider { margin-bottom: var(--control-margin-bottom); }
+
+.slider-label {
+  display: flex; justify-content: space-between;
+  margin-bottom: var(--console-gap-xs);
+  font-size: var(--console-label-font-size); color: var(--console-text-secondary-color); font-weight: 400;
+}
+.slider-value { color: var(--console-text-primary-color); font-size: var(--console-label-font-size); }
+
+.console-slider {
+  -webkit-appearance: none; appearance: none; width: 100%; height: 4px;
+  border-radius: 2px; background: rgba(0, 0, 0, 0.6);
+  outline: none; cursor: pointer; border: 1px solid rgba(40,40,40,0.5);
+}
+.console-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; width: 10px; height: 14px;
+  border-radius: 2px; background: rgb(140, 140, 145);
+  border: 1px solid rgba(60, 60, 65, 0.7); box-shadow: none;
+}
+.console-slider::-moz-range-thumb {
+  width: 10px; height: 14px; border-radius: 2px; background: rgb(140, 140, 145);
+  border: 1px solid rgba(60, 60, 65, 0.7); box-shadow: none; cursor: pointer;
+}
+.console-slider:focus::-webkit-slider-thumb, .console-slider::-webkit-slider-thumb:hover {
+  background: rgb(190, 190, 195); border-color: rgba(100, 100, 105, 0.8);
+}
+.console-slider:focus::-moz-range-thumb, .console-slider::-moz-range-thumb:hover {
+  background: rgb(190, 190, 195); border-color: rgba(100, 100, 105, 0.8);
+}
+
+.console-btn, .grid-btn, .blend-btn {
+  padding: 3px 6px; /* Adjusted for balance */
+  min-height: 24px;
+  box-sizing: border-box;
+  background-color: var(--console-btn-bg);
+  border: 1px solid var(--console-btn-border);
+  border-radius: 3px; color: var(--console-text-secondary-color); cursor: pointer;
+  font-family: var(--console-font-family); font-size: 9.5px; font-weight: 400;
+  text-align: center; transition: all 0.1s ease-out;
+  white-space: normal; line-height: 1.2;
+  display: flex; align-items: center; justify-content: center;
+}
+/* ... (button hover, active, .active states remain similar) ... */
+.console-btn:hover, .grid-btn:hover, .blend-btn:hover {
+  background-color: var(--console-btn-hover-bg);
+  border-color: var(--console-btn-hover-border);
+  color: var(--console-text-primary-color);
+}
+.console-btn:active, .grid-btn:active, .blend-btn:active {
+  background-color: var(--console-btn-active-bg); transform: scale(0.97);
+}
+.console-btn.active, .grid-btn.active, .blend-btn.active {
+  background-color: var(--console-active-bg-color);
+  border-color: var(--console-active-border-color);
+  color: var(--console-text-inverted-color);
+  box-shadow: none;
+}
+.console-btn.active:hover, .grid-btn.active:hover, .blend-btn.active:hover {
+  background-color: rgba(215, 215, 220, 0.9);
+  border-color: rgba(230, 230, 235, 0.95);
+}
+
+
+/* CATEGORIES MODULE: Reverted to Grid, better for wider modules */
+.category-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(65px, 1fr)); /* More robust for varying widths */
+  gap: var(--console-gap-s);
+  margin-bottom: var(--control-margin-bottom-s);
+}
+.category-filters .console-btn {
+  width: auto; /* Let grid control width */
+  justify-content: center;
+  font-size: 9px;
+  padding: 3px 5px; /* Balance padding */
+  min-height: 22px;
+}
+
+.button-grid {
+  display: grid; gap: var(--console-gap-s);
+  margin-bottom: var(--control-margin-bottom-s);
+}
+.button-grid.layout-grid { grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); }
+.button-grid.camera-grid { grid-template-columns: repeat(auto-fit, minmax(65px, 1fr)); }
+.button-grid.orbit-buttons { grid-template-columns: repeat(2, 1fr); gap: var(--console-gap-xs); }
+
+.distortion-presets, .view-mode-buttons, .blend-buttons, .size-buttons {
+  display: flex; flex-wrap: wrap;
+  gap: var(--console-gap-s);
+  margin-bottom: var(--control-margin-bottom-s);
+}
+.distortion-presets .console-btn, .view-mode-buttons .console-btn,
+.blend-buttons .blend-btn, .size-buttons .console-btn {
+  flex-grow: 1; flex-basis: 0;
+}
+
+.control-item-label {
+  font-size: var(--console-label-font-size); color: var(--console-text-secondary-color);
+  margin-right: var(--console-gap-s); font-weight: 400;
+}
+
+.control-item {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: var(--control-margin-bottom-s);
+  padding: var(--console-gap-xs) 0;
+}
+
+.blend-modes .blend-label {
+  font-size: var(--console-label-font-size); color: var(--console-text-secondary-color);
+  margin-bottom: var(--console-gap-xs); display: block; font-weight: 400;
+}
+
+h5.sub-module-title {
+  font-size: 10px; /* Slightly larger for clarity with more padding */
+  color: var(--console-text-secondary-color); text-transform: uppercase;
+  margin: var(--console-gap-s) 0 var(--console-gap-xs) 0;
+  font-weight: 600; border-bottom: 1px solid var(--console-border-tertiary);
+  padding-bottom: var(--console-gap-xs); letter-spacing: 0.3px;
+}
+hr.module-divider {
+  border: none; height: 1px; background-color: var(--console-border-tertiary);
+  margin: var(--console-gap-s) 0;
+}
+
+.module-info {
+  font-size: 9.5px; color: var(--console-text-tertiary-color);
+  margin-top: var(--console-gap-s); line-height: 1.3; font-weight: 400;
+}
+.module-info p { margin: 0; }
+
+/* Toggle Switch (styles mostly same, already compact) */
+.toggle-switch {
+  position: relative; display: inline-block;
+  width: 40px; height: 22px;
+}
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+.switch-slider {
+  position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: #333; transition: .3s; border-radius: 22px; border: 1px solid #222;
+}
+.switch-slider:before {
+  position: absolute; content: ""; height: 16px; width: 16px;
+  left: 2px; bottom: 2px; background-color: #aaa;
+  transition: .3s; border-radius: 50%; box-shadow: 0 0 1px rgba(0,0,0,0.2);
+}
+.toggle-switch input:checked + .switch-slider {
+  background-color: var(--console-active-bg-color);
+  border-color: darken(var(--console-active-border-color), 10%);
+}
+.toggle-switch input:focus + .switch-slider { box-shadow: 0 0 2px var(--console-text-secondary-color); }
+.toggle-switch input:checked + .switch-slider:before {
+  transform: translateX(18px); background-color: var(--console-text-inverted-color);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .console-modules {
+    /* On mobile, revert to simpler horizontal scrolling or stacked layout if preferred */
+    /* For now, keeping flex-row but modules will likely take full width due to screen size */
+    flex-wrap: wrap; /* Allow modules to wrap onto next line if they can't fit */
+    padding: var(--console-gap-s);
+  }
+  .module-panel.module-open {
+    flex-basis: 100%; /* Make open modules take full width on mobile */
+    min-width: 0; /* Override desktop min-width */
+    margin-bottom: var(--console-gap-s); /* Space between stacked modules */
+  }
+ 
+
+  .module-content { padding: var(--console-gap-s); } /* Consistent tighter padding on mobile */
+  .console-btn, .grid-btn, .blend-btn { font-size: 9px; padding: 3px 5px; min-height: 22px; }
+  .category-filters .console-btn { font-size: 9px; padding: 3px 5px; }
+
+  h5.sub-module-title { font-size: 9.5px; margin: 4px 0 3px 0; padding-bottom: 2px;}
+  /* Other mobile-specific tightening from previous versions can be re-applied as needed */
+}

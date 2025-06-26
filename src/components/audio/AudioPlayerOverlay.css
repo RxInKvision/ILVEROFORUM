@@ -1,0 +1,223 @@
+/* src/components/audio/AudioPlayerOverlay.css */
+.audio-player-overlay {
+  position: fixed;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%) translateY(calc(100% + 20px));
+  width: auto;
+  background-color: transparent;
+  z-index: 1000;
+  transition: transform 0.4s ease-in-out, opacity 0.4s ease-in-out;
+  opacity: 0;
+  font-family: 'SourceCodePro-Regular', 'SF Mono', 'Menlo', 'Monaco', monospace;
+  pointer-events: none;
+  mix-blend-mode: difference;
+}
+
+.audio-player-overlay.visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+.player-content-wrapper {
+  background-color: rgba(0, 0, 0, 0);
+  padding: 12px 18px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.0);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0px;
+  pointer-events: auto;
+  color: #e0e0e0; /* Default light color for dark theme */
+  width: 350px;
+}
+
+.player-content-wrapper.light-mode {
+  background-color: rgba(255, 255, 255, 0); /* Transparent */
+  color: #FFFFFF; /* Text color to white for difference effect */
+  box-shadow: 0 2px 8px rgba(0,0,0,0); /* Transparent */
+}
+
+.player-content-wrapper.light-mode .track-info .title {
+  color: #FFFFFF;
+}
+
+.player-content-wrapper.light-mode .track-info .musician {
+  color: #FFFFFF;
+  /* opacity: 0.9; /* Optional: if pure white is too stark for musician text */
+}
+
+.player-content-wrapper.light-mode .track-info .playlist-count {
+  color: #FFFFFF;
+  opacity: 0.7; /* Opacity can remain for differentiation */
+}
+
+.player-content-wrapper.light-mode .controls button:disabled {
+  color: #FFFFFF;
+  opacity: 0.5; /* Use opacity for disabled state with white color */
+}
+
+/* Text shadows: Test with mix-blend-mode, remove if they look odd */
+.player-content-wrapper:not(.light-mode) .track-info .title,
+.player-content-wrapper:not(.light-mode) .track-info .musician,
+.player-content-wrapper:not(.light-mode) .track-info .playlist-count {
+  text-shadow: 0px 0px 2px rgba(0, 0, 0, 0.8);
+}
+
+.player-content-wrapper.light-mode .track-info .title,
+.player-content-wrapper.light-mode .track-info .musician,
+.player-content-wrapper.light-mode .track-info .playlist-count {
+  text-shadow: none; /* Cleaner with difference mode */
+}
+
+.audio-player-overlay .track-info {
+  text-align: center;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0px;
+  min-width: 0;
+  margin: 0;
+}
+
+.audio-player-overlay .track-info .title {
+  font-size: 10px;
+  font-weight: bold;
+  margin: 0;
+  margin-bottom: 6px;
+  line-height: 1.2;
+  width: 100%;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
+  color: #ffffff; /* Ensures white for dark theme as well */
+}
+
+.audio-player-overlay .track-info .musician {
+  font-size: 8px;
+  font-weight: lighter;
+  margin: 0;
+  margin-bottom: 4px;
+  line-height: 1.1;
+  width: 100%;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
+  opacity: 0.75; /* Inherits light color from .player-content-wrapper */
+}
+
+.audio-player-overlay .track-info .playlist-count {
+  font-size: 6px;
+  font-weight: lighter;
+  margin: 0;
+  line-height: 1.1;
+  opacity: 0.65; /* Inherits light color */
+  width: 100%;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.waveform-container {
+  width: 100%;
+  margin: 0 0 0px 0;
+  min-height: 1px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+}
+
+.audio-player-overlay .controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+}
+
+.audio-player-overlay .controls button {
+  background: none;
+  border: none;
+  color: inherit; /* Makes icons white/light based on parent */
+  font-size: 1em;
+  margin: 0 4px;
+  padding: 2px;
+  cursor: pointer;
+  transition: color 0.2s ease, transform 0.1s ease, filter 0.2s ease;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  min-height: 26px;
+  visibility: hidden;
+}
+
+.audio-player-overlay .controls button:hover:not(:disabled) {
+  filter: brightness(1.2); /* Test this with difference mode */
+}
+
+.player-content-wrapper.light-mode .controls button:hover:not(:disabled) {
+  filter: brightness(1.2); /* Consistent hover, test visual effect */
+  /* Original light mode had brightness(0.7), which might be inverted by 'difference' */
+}
+
+.audio-player-overlay .controls button svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+@media (max-width: 360px) {
+  .player-content-wrapper {
+    width: calc(100vw - 20px);
+    min-width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
+    padding: 6px 10px;
+  }
+  .audio-player-overlay {
+    bottom: 5px;
+    transform: translateX(-50%) translateY(calc(100% + 5px));
+  }
+  .audio-player-overlay.visible {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .audio-player-overlay .track-info {
+    margin-bottom: 1px;
+  }
+  .audio-player-overlay .track-info .title {
+    font-size: 0.9em;
+    margin-bottom: 2px;
+  }
+  .audio-player-overlay .track-info .musician {
+    font-size: 0.75em;
+    margin-bottom: 1px;
+  }
+  .audio-player-overlay .track-info .playlist-count {
+    font-size: 0.65em;
+  }
+
+  .waveform-container {
+    margin-bottom: 1px;
+  }
+
+  .audio-player-overlay .controls button svg {
+    width: 16px;
+    height: 16px;
+  }
+  .audio-player-overlay .controls button {
+    margin: 0 3px;
+    padding: 1px;
+    min-width: 22px;
+    min-height: 22px;
+  }
+}
