@@ -76,6 +76,19 @@
 
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <script>
+        // Funzione di Throttling: limita la frequenza di esecuzione di una funzione
+        function throttle(func, limit) {
+            let inThrottle;
+            return function() {
+                const args = arguments;
+                const context = this;
+                if (!inThrottle) {
+                    func.apply(context, args);
+                    inThrottle = true;
+                    setTimeout(() => inThrottle = false, limit);
+                }
+            }
+        }
         // --- SEZIONE ABLY ---
         const ABLY_API_KEY = '3GJyQg.xnTqzg:tt71NuL5l13occebb9fmAZa_rywbbwtklbpkjEFETQA'; // Ricorda di rigenerarla dopo!
         const ably = new Ably.Realtime({ key: ABLY_API_KEY, recover: true });
@@ -86,6 +99,11 @@
                 channel.publish('control-message', payload);
             }
         }
+
+        // --- FUNZIONI THROTTLED PER L'INVIO DI DATI ---
+        const throttledSendCursorMove = throttle((payload) => sendToSocket(payload), 50);
+        const throttledSendCameraCommand = throttle((payload) => sendToSocket(payload), 50);
+
 
         // --- ELEMENTI DOM E STATO ---
         const cursorRectangle = document.getElementById('cursor-rectangle');
@@ -149,7 +167,9 @@
                 virtualCursor1.style.left = `${normX * rect.width}px`;
                 virtualCursor1.style.top = `${normY * rect.height}px`;
                 if (Math.sqrt(Math.pow(e.clientX-pointerDownPosition_cursorPad.x,2)+Math.pow(e.clientY-pointerDownPosition_cursorPad.y,2)) > TAP_MOVE_THRESHOLD_cursorPad) isDraggingForCursor_cursorPad = true;
-                sendToSocket({ type: 'pointermove', x: normX, y: normY });
+                
+                // --- MODIFICA QUI: USA LA FUNZIONE THROTTLED ---
+                throttledSendCursorMove({ type: 'pointermove', x: normX, y: normY });
             });
             const handleCursorUp = (e) => {
                 if (!activeTouches_cursorPad.has(e.pointerId)) return;
@@ -201,7 +221,8 @@
                     virtualCursor1.style.display='block'; virtualCursor1.style.left=`${pos.x}px`; virtualCursor1.style.top=`${pos.y}px`;
                     const dx=e.clientX-nav_lastOrbitPos.x, dy=e.clientY-nav_lastOrbitPos.y;
                     if(Math.abs(dx)>0.1 || Math.abs(dy)>0.1){
-                        sendToSocket({type:'cameraCommand', command:'orbit', dx:dx*NAV_ORBIT_SENSITIVITY_RAW, dy:dy*NAV_ORBIT_SENSITIVITY_RAW});
+                        // --- MODIFICA QUI: USA LA FUNZIONE THROTTLED ---
+                        throttledSendCameraCommand({type:'cameraCommand', command:'orbit', dx:dx*NAV_ORBIT_SENSITIVITY_RAW, dy:dy*NAV_ORBIT_SENSITIVITY_RAW});
                         nav_lastOrbitPos = {x:e.clientX, y:e.clientY};
                     }
                 } else if(nav_activeTouches.size >= 2 && nav_isMultiTouching){
@@ -213,8 +234,9 @@
                     const p2=clampToCircle(t2.clientX-rect.left,t2.clientY-rect.top,sphereTouchTarget); virtualCursor2.style.left=`${p2.x}px`; virtualCursor2.style.top=`${p2.y}px`;
                     const pinch=calculateDistance(t1,t2), centroid=getCentroid(nav_activeTouches);
                     const pDelta=pinch-nav_lastPinchDist, panDx=centroid.x-nav_lastCentroid_navPad.x, panDy=centroid.y-nav_lastCentroid_navPad.y;
-                    if(Math.abs(pDelta)>NAV_ZOOM_SENSITIVITY_PIXELS) sendToSocket({type:'cameraCommand', command:'dolly', value:-pDelta*NAV_DOLLY_SENSITIVITY_RAW});
-                    else if(Math.abs(panDx)>NAV_PAN_SENSITIVITY_PIXELS || Math.abs(panDy)>NAV_PAN_SENSITIVITY_PIXELS) sendToSocket({type:'cameraCommand', command:'pan', dx:panDx, dy:panDy});
+                    // --- MODIFICA QUI: USA LA FUNZIONE THROTTLED ---
+                    if(Math.abs(pDelta)>NAV_ZOOM_SENSITIVITY_PIXELS) throttledSendCameraCommand({type:'cameraCommand', command:'dolly', value:-pDelta*NAV_DOLLY_SENSITIVITY_RAW});
+                    else if(Math.abs(panDx)>NAV_PAN_SENSITIVITY_PIXELS || Math.abs(panDy)>NAV_PAN_SENSITIVITY_PIXELS) throttledSendCameraCommand({type:'cameraCommand', command:'pan', dx:panDx, dy:panDy});
                     nav_lastPinchDist=pinch; nav_lastCentroid_navPad=centroid;
                 }
             });
@@ -241,9 +263,9 @@
         // --- FUNZIONI GENERALI ---
         function toggleFullScreen() {
              if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => console.log(err.message));
+                 document.documentElement.requestFullscreen().catch(err => console.log(err.message));
              } else {
-                if(document.exitFullscreen) document.exitFullscreen();
+                 if(document.exitFullscreen) document.exitFullscreen();
              }
         }
         if (fullscreenButton) fullscreenButton.addEventListener('click', toggleFullScreen);
