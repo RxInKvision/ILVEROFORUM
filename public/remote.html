@@ -79,7 +79,6 @@
         const channel = ably.channels.get('remote-control-channel');
 
         function sendToSocket(payload) {
-            // Revertito: Ably gestisce la coda dei messaggi se inviati prima della connessione
             if (channel) {
                 channel.publish('control-message', payload);
             }
@@ -104,28 +103,19 @@
         let nav_isDragging_sphere = false;
         const NAV_SPHERE_TAP_TIME_THRESHOLD = 300;
         const NAV_SPHERE_TAP_MOVE_THRESHOLD = 20;
+        const NAV_PAN_SENSITIVITY_PIXELS = 0.8;
+        const NAV_DOLLY_SENSITIVITY_RAW = 0.004;
+        const NAV_ORBIT_SENSITIVITY_RAW = 1.5;
         const availableLayouts = ["GRID", "RANDOM_3D", "SPHERE_SURFACE", "TUBE"];
         let currentLayoutSphereIndex = 0;
 
-        // **LOGICA DI CONNESSIONE MIGLIORATA**
-        ably.connection.on('connected', () => {
-            statusText.textContent = 'Connected';
-            statusIndicator.classList.add('connected');
-        });
-        ably.connection.on('failed', () => {
-            statusText.textContent = 'Connection Failed';
-            statusIndicator.classList.remove('connected');
-        });
-        ably.connection.on('suspended', () => {
-            statusText.textContent = 'Suspended';
-            statusIndicator.classList.remove('connected');
-        });
-        ably.connection.on('disconnected', () => {
-            statusText.textContent = 'Disconnected';
-            statusIndicator.classList.remove('connected');
-        });
+        ably.connection.on('connected', () => { statusText.textContent = 'Connected'; statusIndicator.classList.add('connected'); });
+        ably.connection.on('failed', () => { statusText.textContent = 'Connection Failed'; statusIndicator.classList.remove('connected'); });
+        ably.connection.on('suspended', () => { statusText.textContent = 'Suspended'; statusIndicator.classList.remove('connected'); });
+        ably.connection.on('disconnected', () => { statusText.textContent = 'Disconnected'; statusIndicator.classList.remove('connected'); });
         
         function triggerHapticFeedback(d=5) { if (navigator.vibrate) navigator.vibrate(d); }
+        function getCentroid(touchesMap) { let sx=0,sy=0,c=0; for(const t of touchesMap.values()){sx+=t.clientX;sy+=t.clientY;c++;} return(c>0)?{x:sx/c,y:sy/c}:{x:0,y:0};}
         function calculateDistance(p1,p2) {return Math.sqrt(Math.pow(p2.clientX-p1.clientX,2)+Math.pow(p2.clientY-p1.clientY,2));}
         
         if(cursorRectangle){
@@ -158,10 +148,11 @@
             const handleCursorUp = (e) => {
                 if (!cursorRectangle.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
-                if (!isDraggingForCursor) {
-                    triggerHapticFeedback(20); 
-                    sendToSocket({ type: 'click' });
-                }
+                
+                // **CORREZIONE**: Invia 'click' ogni volta che il dito viene alzato.
+                triggerHapticFeedback(10); 
+                sendToSocket({ type: 'click' });
+                
                 sendToSocket({ type: 'pointerup' });
                 try { cursorRectangle.releasePointerCapture(e.pointerId); } catch(err) {}
                 virtualCursor1.style.display = 'none';
@@ -189,6 +180,7 @@
                     nav_isMultiTouching = true;
                     const touches = Array.from(nav_activeTouches.values());
                     nav_lastPinchDist = calculateDistance(touches[0], touches[1]);
+                    nav_lastCentroid = getCentroid(nav_activeTouches);
                 }
             });
             sphereTouchTarget.addEventListener('pointermove', (e) => {
@@ -202,14 +194,25 @@
                     if(nav_activeTouches.size === 1 && nav_isOrbiting){
                         const dx = e.clientX - nav_lastOrbitPos.x;
                         const dy = e.clientY - nav_lastOrbitPos.y;
-                        throttledSendCameraCommand({type:'cameraCommand', command:'orbit', dx: dx * 1.5, dy: dy * 1.5});
+                        throttledSendCameraCommand({type:'cameraCommand', command:'orbit', dx: dx * NAV_ORBIT_SENSITIVITY_RAW, dy: dy * NAV_ORBIT_SENSITIVITY_RAW});
                         nav_lastOrbitPos = {x: e.clientX, y: e.clientY};
                     } else if(nav_activeTouches.size >= 2 && nav_isMultiTouching){
+                        // **CORREZIONE**: Logica Pan/Dolly ripristinata correttamente
                         const touches = Array.from(nav_activeTouches.values());
                         const pinch = calculateDistance(touches[0], touches[1]);
+                        const centroid = getCentroid(nav_activeTouches);
                         const pDelta = pinch - nav_lastPinchDist;
-                        throttledSendCameraCommand({type:'cameraCommand', command:'dolly', value: -pDelta * 0.004});
-                        nav_lastPinchDist=pinch;
+                        const panDx = centroid.x - nav_lastCentroid.x;
+                        const panDy = centroid.y - nav_lastCentroid.y;
+                        
+                        if(Math.abs(pDelta) > Math.abs(panDx) && Math.abs(pDelta) > Math.abs(panDy)) {
+                            throttledSendCameraCommand({type:'cameraCommand', command:'dolly', value: -pDelta * NAV_DOLLY_SENSITIVITY_RAW});
+                        } else {
+                            throttledSendCameraCommand({type:'cameraCommand', command:'pan', dx:panDx, dy:panDy});
+                        }
+                        
+                        nav_lastPinchDist = pinch;
+                        nav_lastCentroid = centroid;
                     }
                 }
             });
