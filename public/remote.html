@@ -32,22 +32,7 @@
         #sphere-touch-target { width: 70vmin; height: 70vmin; max-width: 85%; max-height: 85%; background: var(--base-bg); border-radius: 50%; display: flex; justify-content: center; align-items: center; text-align: center; cursor: grab; color: var(--text-secondary); box-shadow: var(--neumorphic-distance) var(--neumorphic-distance) var(--neumorphic-blur) var(--dark-shadow-color), calc(-1 * var(--neumorphic-distance)) calc(-1 * var(--neumorphic-distance)) var(--neumorphic-blur) var(--light-shadow-color); transition: box-shadow 0.15s ease-out, transform 0.1s ease-out; }
         #sphere-touch-target:active { box-shadow: inset var(--neumorphic-distance) var(--neumorphic-distance) var(--neumorphic-blur) var(--dark-shadow-color), inset calc(-1 * var(--neumorphic-distance)) calc(-1 * var(--neumorphic-distance)) var(--neumorphic-blur) var(--light-shadow-color); transform: scale(0.98); }
         #cursor-rectangle-text, #sphere-touch-target span { font-size: 1.0em; color: var(--text-secondary); text-shadow: 1px 1px 2px var(--dark-shadow-color), -1px -1px 2px var(--light-shadow-color); opacity: 0.9; transition: opacity 0.2s ease-out; }
-        
-        /* --- STILE CURSORE RIPRISTINATO --- */
-        .virtual-cursor {
-            position: absolute;
-            width: 24px; height: 24px;
-            background: var(--base-bg); /* Sfondo uguale al body per l'effetto neumorph */
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            display: none;
-            z-index: 10;
-            box-shadow: inset 2px 2px 4px var(--dark-shadow-color),
-                        inset -2px -2px 4px var(--light-shadow-color);
-            transition: opacity 0.2s ease-out;
-        }
-
+        .virtual-cursor { position: absolute; width: 24px; height: 24px; background: var(--base-bg); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; display: none; z-index: 10; box-shadow: inset 2px 2px 4px var(--dark-shadow-color), inset -2px -2px 4px var(--light-shadow-color); transition: opacity 0.2s ease-out; }
         .status-dot { height: 10px; width: 10px; background-color: #e74c3c; border-radius: 50%; display: inline-block; margin-left: 8px; vertical-align: middle; box-shadow: 0 0 3px #e74c3c;}
         .status-dot.connected { background-color: #2ecc71; box-shadow: 0 0 5px #2ecc71;}
         .fullscreen-btn { background: var(--base-bg); border: none; color: var(--text-secondary); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; box-shadow: var(--neumorphic-distance) var(--neumorphic-distance) var(--neumorphic-blur) var(--dark-shadow-color), calc(-1 * var(--neumorphic-distance)) calc(-1 * var(--neumorphic-distance)) var(--neumorphic-blur) var(--light-shadow-color); transition: all 0.15s ease-out; }
@@ -76,7 +61,7 @@
 
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <script>
-        // Funzione di Throttling: limita la frequenza di esecuzione di una funzione
+        // Funzione di Throttling
         function throttle(func, limit) {
             let inThrottle;
             return function() {
@@ -89,103 +74,111 @@
                 }
             }
         }
+
         // --- SEZIONE ABLY ---
-        const ABLY_API_KEY = '3GJyQg.xnTqzg:tt71NuL5l13occebb9fmAZa_rywbbwtklbpkjEFETQA'; // Ricorda di rigenerarla dopo!
+        const ABLY_API_KEY = '3GJyQg.xnTqzg:tt71NuL5l13occebb9fmAZa_rywbbwtklbpkjEFETQA';
         const ably = new Ably.Realtime({ key: ABLY_API_KEY, recover: true });
         const channel = ably.channels.get('remote-control-channel');
 
         function sendToSocket(payload) {
-            if (channel) {
+            if (channel && channel.state === 'attached') {
                 channel.publish('control-message', payload);
             }
         }
 
         // --- FUNZIONI THROTTLED PER L'INVIO DI DATI ---
-        const throttledSendCursorMove = throttle((payload) => sendToSocket(payload), 50);
-        const throttledSendCameraCommand = throttle((payload) => sendToSocket(payload), 50);
-
+        const THROTTLE_DELAY = 75; // Aumentato a 75ms per ridurre il carico
+        const throttledSendCursorMove = throttle((payload) => sendToSocket(payload), THROTTLE_DELAY);
+        const throttledSendCameraCommand = throttle((payload) => sendToSocket(payload), THROTTLE_DELAY);
 
         // --- ELEMENTI DOM E STATO ---
         const cursorRectangle = document.getElementById('cursor-rectangle');
-        const cursorRectangleText = document.getElementById('cursor-rectangle-text');
         const virtualCursor1 = document.getElementById('virtual-cursor-1');
         const virtualCursor2 = document.getElementById('virtual-cursor-2');
         const sphereTouchTarget = document.getElementById('sphere-touch-target');
-        const sphereTouchTargetText = sphereTouchTarget.querySelector('span');
         const statusText = document.getElementById('status-text');
         const statusIndicator = document.getElementById('status-indicator');
         const fullscreenButton = document.getElementById('fullscreen-toggle');
 
-        const activeTouches_cursorPad = new Map();
-        let pointerDownTime_cursorPad = 0, pointerDownPosition_cursorPad = { x: 0, y: 0 }, isDraggingForCursor_cursorPad = false;
-        const TAP_MOVE_THRESHOLD_cursorPad = 10, TAP_TIME_THRESHOLD_cursorPad = 300;
-        
+        // Stato pad cursore
+        let isDraggingForCursor = false;
+        const TAP_MOVE_THRESHOLD_cursorPad = 15; // Leggermente più tollerante
+
+        // Stato pad 3D (sfera)
         const nav_activeTouches = new Map();
-        let nav_isOrbiting = false, nav_lastOrbitPos = { x: 0, y: 0 }, nav_isMultiTouching = false;
-        let nav_touch1_navPad = null, nav_touch2_navPad = null, nav_lastPinchDist = 0, nav_lastCentroid_navPad = { x: 0, y: 0 };
-        const NAV_ORBIT_SENSITIVITY_RAW = 1.5, NAV_DOLLY_SENSITIVITY_RAW = 0.004, NAV_PAN_SENSITIVITY_PIXELS = 0.8;
-        const NAV_ZOOM_SENSITIVITY_PIXELS = 0.1, NAV_SPHERE_TAP_TIME_THRESHOLD = 250, NAV_SPHERE_TAP_MOVE_THRESHOLD = 15;
-        let nav_pointerDownTime_sphere = 0, nav_pointerDownStartPos_sphere = { x: 0, y: 0 };
-        
+        let nav_isOrbiting = false, nav_lastOrbitPos = { x: 0, y: 0 };
+        let nav_isMultiTouching = false, nav_lastPinchDist = 0, nav_lastCentroid = { x: 0, y: 0 };
+        let nav_isDragging_sphere = false; // NUOVO: Flag per distinguere tap da drag
+        const NAV_SPHERE_TAP_TIME_THRESHOLD = 300;
+        const NAV_SPHERE_TAP_MOVE_THRESHOLD = 20; // Aumentato per più tolleranza
+
         const availableLayouts = ["GRID", "RANDOM_3D", "SPHERE_SURFACE", "TUBE"];
         let currentLayoutSphereIndex = 0;
         
         // --- LOGICA DI CONNESSIONE E FEEDBACK ---
         channel.on('attached', () => { statusText.textContent = 'Connected'; statusIndicator.classList.add('connected'); });
         channel.on('failed', () => { statusText.textContent = 'Connection Failed'; statusIndicator.classList.remove('connected'); });
-        channel.subscribe('feedback-message', (message) => {
-            if (message.data.type === 'hoverFeedback' && message.data.itemId) triggerHapticFeedback(5);
-        });
-
+        channel.on('suspended', () => { statusText.textContent = 'Connection Suspended'; statusIndicator.classList.remove('connected'); });
+        channel.on('detached', () => { statusText.textContent = 'Disconnected'; statusIndicator.classList.remove('connected'); });
+        
         // --- FUNZIONI DI UTILITÀ ---
         function triggerHapticFeedback(d=5) { if (navigator.vibrate) navigator.vibrate(d); }
         function getCentroid(touchesMap) { let sx=0,sy=0,c=0; for(const t of touchesMap.values()){sx+=t.clientX;sy+=t.clientY;c++;} return(c>0)?{x:sx/c,y:sy/c}:{x:0,y:0};}
         function calculateDistance(p1,p2) {return Math.sqrt(Math.pow(p2.clientX-p1.clientX,2)+Math.pow(p2.clientY-p1.clientY,2));}
-        function clampToCircle(x,y,el) { const r=el.getBoundingClientRect(), cX=r.width/2,cY=r.height/2,rd=r.width/2,dX=x-cX,dY=y-cY,d=Math.sqrt(dX*dX+dY*dY); if(d>rd){const a=Math.atan2(dY,dX);return {x:cX+rd*Math.cos(a),y:cY+rd*Math.sin(a)};} return {x,y};}
         
         // --- GESTIONE EVENTI PAD CURSORE ---
         if(cursorRectangle){
+            let pointerDownTime = 0;
+            let startPos = { x: 0, y: 0 };
+
             cursorRectangle.addEventListener('pointerdown', (e) => {
                 triggerHapticFeedback(); e.preventDefault();
                 cursorRectangle.setPointerCapture(e.pointerId);
-                activeTouches_cursorPad.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY });
-                pointerDownTime_cursorPad = Date.now();
-                pointerDownPosition_cursorPad = { x: e.clientX, y: e.clientY };
-                isDraggingForCursor_cursorPad = false;
+                
+                pointerDownTime = Date.now();
+                startPos = { x: e.clientX, y: e.clientY };
+                isDraggingForCursor = false;
+                
                 cursorRectangle.appendChild(virtualCursor1);
                 virtualCursor1.style.display = 'block';
-                if(cursorRectangleText) cursorRectangleText.style.opacity = '0';
+                
                 const rect = cursorRectangle.getBoundingClientRect();
                 sendToSocket({ type: 'pointerdown', x: (e.clientX-rect.left)/rect.width, y: (e.clientY-rect.top)/rect.height });
             });
+
             cursorRectangle.addEventListener('pointermove', (e) => {
-                if (!activeTouches_cursorPad.has(e.pointerId)) return;
+                if (!cursorRectangle.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
+
+                if (Math.sqrt(Math.pow(e.clientX - startPos.x, 2) + Math.pow(e.clientY - startPos.y, 2)) > TAP_MOVE_THRESHOLD_cursorPad) {
+                    isDraggingForCursor = true;
+                }
+
                 const rect = cursorRectangle.getBoundingClientRect();
                 const normX = Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
                 const normY = Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height));
                 virtualCursor1.style.left = `${normX * rect.width}px`;
                 virtualCursor1.style.top = `${normY * rect.height}px`;
-                if (Math.sqrt(Math.pow(e.clientX-pointerDownPosition_cursorPad.x,2)+Math.pow(e.clientY-pointerDownPosition_cursorPad.y,2)) > TAP_MOVE_THRESHOLD_cursorPad) isDraggingForCursor_cursorPad = true;
-                
-                // --- MODIFICA QUI: USA LA FUNZIONE THROTTLED ---
-                throttledSendCursorMove({ type: 'pointermove', x: normX, y: normY });
+
+                if (isDraggingForCursor) {
+                    throttledSendCursorMove({ type: 'pointermove', x: normX, y: normY });
+                }
             });
+
             const handleCursorUp = (e) => {
-                if (!activeTouches_cursorPad.has(e.pointerId)) return;
+                if (!cursorRectangle.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
-                // --- LOGICA CLICK vs POINTERUP CORRETTA ---
-                if (!isDraggingForCursor_cursorPad && (Date.now() - pointerDownTime_cursorPad < TAP_TIME_THRESHOLD_cursorPad)) {
+                
+                // **LOGICA CLICK SU RILASCIO**
+                if (!isDraggingForCursor) {
                     triggerHapticFeedback(20); 
                     sendToSocket({ type: 'click' });
                 }
+                
                 sendToSocket({ type: 'pointerup' });
                 
-                activeTouches_cursorPad.delete(e.pointerId);
                 try { cursorRectangle.releasePointerCapture(e.pointerId); } catch(err) {}
                 virtualCursor1.style.display = 'none';
-                if(cursorRectangleText) cursorRectangleText.style.opacity = '0.9';
-                isDraggingForCursor_cursorPad = false;
             };
             cursorRectangle.addEventListener('pointerup', handleCursorUp);
             cursorRectangle.addEventListener('pointercancel', handleCursorUp);
@@ -193,91 +186,91 @@
 
         // --- GESTIONE EVENTI PAD 3D (SFERA) ---
         if(sphereTouchTarget) {
+            let nav_pointerDownTime_sphere = 0;
+            let nav_pointerDownStartPos_sphere = { x: 0, y: 0 };
+
             sphereTouchTarget.addEventListener('pointerdown', (e) => {
                 triggerHapticFeedback(); e.preventDefault();
                 sphereTouchTarget.setPointerCapture(e.pointerId);
                 nav_activeTouches.set(e.pointerId, { id: e.pointerId, clientX: e.clientX, clientY: e.clientY });
+
                 nav_pointerDownTime_sphere = Date.now();
-                nav_pointerDownStartPos_sphere = {x:e.clientX, y:e.clientY};
-                if(sphereTouchTargetText) sphereTouchTargetText.style.opacity = '0';
+                nav_pointerDownStartPos_sphere = {x: e.clientX, y: e.clientY};
+                nav_isDragging_sphere = false; // Resetta il flag di drag
+
                 if(nav_activeTouches.size === 1) {
-                    nav_isOrbiting = true; nav_isMultiTouching = false; nav_lastOrbitPos = {x:e.clientX, y:e.clientY};
+                    nav_isOrbiting = true;
+                    nav_isMultiTouching = false;
+                    nav_lastOrbitPos = {x: e.clientX, y: e.clientY};
                 } else if (nav_activeTouches.size >= 2) {
-                    nav_isOrbiting = false; nav_isMultiTouching = true;
+                    nav_isOrbiting = false;
+                    nav_isMultiTouching = true;
                     const touches = Array.from(nav_activeTouches.values());
-                    nav_touch1_navPad = touches[0]; nav_touch2_navPad = touches[1];
-                    nav_lastPinchDist = calculateDistance(nav_touch1_navPad, nav_touch2_navPad);
-                    nav_lastCentroid_navPad = getCentroid(nav_activeTouches);
+                    nav_lastPinchDist = calculateDistance(touches[0], touches[1]);
+                    nav_lastCentroid = getCentroid(nav_activeTouches);
                 }
             });
+
             sphereTouchTarget.addEventListener('pointermove', (e) => {
-                if(!nav_activeTouches.has(e.pointerId)) return;
+                if(!sphereTouchTarget.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
-                nav_activeTouches.set(e.pointerId, {id: e.pointerId, clientX:e.clientX, clientY:e.clientY});
-                const rect = sphereTouchTarget.getBoundingClientRect();
-                if(nav_activeTouches.size === 1 && nav_isOrbiting){
-                    const pos = clampToCircle(e.clientX-rect.left, e.clientY-rect.top, sphereTouchTarget);
-                    sphereTouchTarget.appendChild(virtualCursor1);
-                    virtualCursor1.style.display='block'; virtualCursor1.style.left=`${pos.x}px`; virtualCursor1.style.top=`${pos.y}px`;
-                    const dx=e.clientX-nav_lastOrbitPos.x, dy=e.clientY-nav_lastOrbitPos.y;
-                    if(Math.abs(dx)>0.1 || Math.abs(dy)>0.1){
-                        // --- MODIFICA QUI: USA LA FUNZIONE THROTTLED ---
-                        throttledSendCameraCommand({type:'cameraCommand', command:'orbit', dx:dx*NAV_ORBIT_SENSITIVITY_RAW, dy:dy*NAV_ORBIT_SENSITIVITY_RAW});
-                        nav_lastOrbitPos = {x:e.clientX, y:e.clientY};
+                nav_activeTouches.set(e.pointerId, {id: e.pointerId, clientX: e.clientX, clientY: e.clientY});
+
+                // **LOGICA TAP vs DRAG**
+                if (!nav_isDragging_sphere && calculateDistance(e, nav_pointerDownStartPos_sphere) > NAV_SPHERE_TAP_MOVE_THRESHOLD) {
+                    nav_isDragging_sphere = true;
+                }
+
+                if (nav_isDragging_sphere) {
+                    if(nav_activeTouches.size === 1 && nav_isOrbiting){
+                        const dx = e.clientX - nav_lastOrbitPos.x;
+                        const dy = e.clientY - nav_lastOrbitPos.y;
+                        throttledSendCameraCommand({type:'cameraCommand', command:'orbit', dx: dx * 1.5, dy: dy * 1.5});
+                        nav_lastOrbitPos = {x: e.clientX, y: e.clientY};
+                    } else if(nav_activeTouches.size >= 2 && nav_isMultiTouching){
+                        const touches = Array.from(nav_activeTouches.values());
+                        const pinch = calculateDistance(touches[0], touches[1]);
+                        const centroid = getCentroid(nav_activeTouches);
+                        const pDelta = pinch - nav_lastPinchDist;
+                        const panDx = centroid.x - nav_lastCentroid.x;
+                        const panDy = centroid.y - nav_lastCentroid.y;
+                        
+                        if(Math.abs(pDelta) > 0.1) throttledSendCameraCommand({type:'cameraCommand', command:'dolly', value: -pDelta * 0.004});
+                        else if(Math.abs(panDx) > 0.1 || Math.abs(panDy) > 0.1) throttledSendCameraCommand({type:'cameraCommand', command:'pan', dx:panDx, dy:panDy});
+                        
+                        nav_lastPinchDist=pinch; nav_lastCentroid=centroid;
                     }
-                } else if(nav_activeTouches.size >= 2 && nav_isMultiTouching){
-                    const t1=nav_activeTouches.get(nav_touch1_navPad.id), t2=nav_activeTouches.get(nav_touch2_navPad.id);
-                    if(!t1 || !t2) return;
-                    sphereTouchTarget.appendChild(virtualCursor1); sphereTouchTarget.appendChild(virtualCursor2);
-                    virtualCursor1.style.display='block'; virtualCursor2.style.display='block';
-                    const p1=clampToCircle(t1.clientX-rect.left,t1.clientY-rect.top,sphereTouchTarget); virtualCursor1.style.left=`${p1.x}px`; virtualCursor1.style.top=`${p1.y}px`;
-                    const p2=clampToCircle(t2.clientX-rect.left,t2.clientY-rect.top,sphereTouchTarget); virtualCursor2.style.left=`${p2.x}px`; virtualCursor2.style.top=`${p2.y}px`;
-                    const pinch=calculateDistance(t1,t2), centroid=getCentroid(nav_activeTouches);
-                    const pDelta=pinch-nav_lastPinchDist, panDx=centroid.x-nav_lastCentroid_navPad.x, panDy=centroid.y-nav_lastCentroid_navPad.y;
-                    // --- MODIFICA QUI: USA LA FUNZIONE THROTTLED ---
-                    if(Math.abs(pDelta)>NAV_ZOOM_SENSITIVITY_PIXELS) throttledSendCameraCommand({type:'cameraCommand', command:'dolly', value:-pDelta*NAV_DOLLY_SENSITIVITY_RAW});
-                    else if(Math.abs(panDx)>NAV_PAN_SENSITIVITY_PIXELS || Math.abs(panDy)>NAV_PAN_SENSITIVITY_PIXELS) throttledSendCameraCommand({type:'cameraCommand', command:'pan', dx:panDx, dy:panDy});
-                    nav_lastPinchDist=pinch; nav_lastCentroid_navPad=centroid;
                 }
             });
+
             const handleNavEnd = (e) => {
-                if(!nav_activeTouches.has(e.pointerId)) return;
-                const time = Date.now()-nav_pointerDownTime_sphere;
-                const dist = calculateDistance({clientX:e.clientX,clientY:e.clientY},nav_pointerDownStartPos_sphere);
-                if(nav_activeTouches.size===1 && time<NAV_SPHERE_TAP_TIME_THRESHOLD && dist<NAV_SPHERE_TAP_MOVE_THRESHOLD){
+                if(!sphereTouchTarget.hasPointerCapture(e.pointerId)) return;
+                
+                // **LOGICA CAMBIO LAYOUT SU TAP**
+                if(nav_activeTouches.size === 1 && !nav_isDragging_sphere && (Date.now() - nav_pointerDownTime_sphere < NAV_SPHERE_TAP_TIME_THRESHOLD)){
                     triggerHapticFeedback(20);
-                    currentLayoutSphereIndex = (currentLayoutSphereIndex+1)%availableLayouts.length;
-                    sendToSocket({type:'appCommand', command:'setLayout', value:availableLayouts[currentLayoutSphereIndex]});
+                    currentLayoutSphereIndex = (currentLayoutSphereIndex + 1) % availableLayouts.length;
+                    sendToSocket({type:'appCommand', command:'setLayout', value: availableLayouts[currentLayoutSphereIndex]});
                 }
+                
                 nav_activeTouches.delete(e.pointerId);
                 try { sphereTouchTarget.releasePointerCapture(e.pointerId); } catch(err){}
-                virtualCursor1.style.display='none'; virtualCursor2.style.display='none';
-                if(sphereTouchTargetText) sphereTouchTargetText.style.opacity='0.9';
-                if(nav_activeTouches.size < 2) nav_isMultiTouching=false;
-                if(nav_activeTouches.size < 1) nav_isOrbiting=false;
+                if(nav_activeTouches.size < 2) nav_isMultiTouching = false;
+                if(nav_activeTouches.size < 1) nav_isOrbiting = false;
             };
             sphereTouchTarget.addEventListener('pointerup', handleNavEnd);
             sphereTouchTarget.addEventListener('pointercancel', handleNavEnd);
         }
         
         // --- FUNZIONI GENERALI ---
-        function toggleFullScreen() {
-             if (!document.fullscreenElement) {
-                 document.documentElement.requestFullscreen().catch(err => console.log(err.message));
-             } else {
-                 if(document.exitFullscreen) document.exitFullscreen();
-             }
-        }
-        if (fullscreenButton) fullscreenButton.addEventListener('click', toggleFullScreen);
+        if (fullscreenButton) fullscreenButton.addEventListener('click', () => {
+             if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(err => console.log(err.message));
+             else if(document.exitFullscreen) document.exitFullscreen();
+        });
         
         const setAppHeight = () => document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
-        window.addEventListener('resize', setAppHeight); window.addEventListener('orientationchange', setAppHeight);
+        window.addEventListener('resize', setAppHeight);
         setAppHeight();
-        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-            if(fullscreenButton) fullscreenButton.style.display = 'none';
-        }
-        document.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-        window.addEventListener('contextmenu', (e) => e.preventDefault());
     </script>
 </body>
 </html>
