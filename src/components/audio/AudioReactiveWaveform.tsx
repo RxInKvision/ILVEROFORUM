@@ -1,13 +1,12 @@
-// src/components/audio/AudioReactiveWaveform.tsx
 import React, { useEffect, useRef, useState, useCallback, ReactElement, useMemo } from 'react';
 import './AudioReactiveWaveform.css';
 
-// NEW: Define a smoothing factor for JavaScript-based animation
-// Adjust this value: smaller (e.g., 0.1) = smoother/slower, larger (e.g., 0.3) = faster/sharper
-const JS_SMOOTHING_FACTOR = 0.6; // You can tune this
+// ULTRA REACTIVE CONSTANTS
+const JS_ATTACK_SMOOTHING = 0.6;  // Very fast attack
+const JS_DECAY_SMOOTHING = 0.4;   // Fast decay
+const PEAK_ATTACK = 0.9;          // Almost instant peaks
 
 interface AudioReactiveWaveformProps {
-  // ... (props remain the same)
   audioContext: AudioContext | null;
   sourceNode: AudioNode | null;
   isPlaying: boolean;
@@ -31,10 +30,10 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
   barPixelWidths,
   spaceBetweenBarsPixelWidths,
   waveformTotalWidth,
-  fftSize = 1024,
-  smoothingTimeConstant = 0.8, // This still applies to raw analyser data
-  minDecibels = -80,
-  maxDecibels = -15,
+  fftSize = 2048,
+  smoothingTimeConstant = 0.1,  // Minimal smoothing for max reactivity
+  minDecibels = -80,  // Less range for more sensitivity
+  maxDecibels = -5,   // Higher max for better peak capture
   barColor = '#FFFFFF',
   initialBarAmplitudes,
   audioResponsiveAmplitude,
@@ -54,32 +53,60 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
 
   const [barAmplitudes, setBarAmplitudes] = useState<number[]>(fullInitialAmplitudes);
 
-  useEffect(() => {
-    if (fullInitialAmplitudes.length === actualNumBarsToDisplay) {
-      setBarAmplitudes(fullInitialAmplitudes);
-    } else if (actualNumBarsToDisplay > 0) {
-      const tempFullAmplitudes: number[] = [];
-      if (initialBarAmplitudes && initialBarAmplitudes.length > 0 && repetitions > 0) {
-        for (let i = 0; i < repetitions; i++) {
-          tempFullAmplitudes.push(...initialBarAmplitudes);
-        }
-      }
-      setBarAmplitudes(tempFullAmplitudes.slice(0, actualNumBarsToDisplay));
-    } else {
-      setBarAmplitudes([]);
+  // AGGRESSIVE frequency mapping
+  const frequencyMapping = useMemo(() => {
+    const patternLength = initialBarAmplitudes.length;
+    if (patternLength === 0) return [];
+    
+    const patternFrequencyRanges = [
+      { start: 0.0, end: 0.15, boost: 2.5, name: "sub-bass" },
+      { start: 0.1, end: 0.3, boost: 2.8, name: "bass" },
+      { start: 0.25, end: 0.45, boost: 3.0, name: "low-mids" },
+      { start: 0.4, end: 0.6, boost: 2.8, name: "mids" },
+      { start: 0.55, end: 0.75, boost: 2.5, name: "upper-mids" },
+      { start: 0.7, end: 0.9, boost: 2.2, name: "treble" },
+    ];
+    
+    const mapping = [];
+    const maxInitial = Math.max(...fullInitialAmplitudes);
+    
+    for (let i = 0; i < actualNumBarsToDisplay; i++) {
+      const patternRepetition = Math.floor(i / patternLength);
+      const barIndexInPattern = i % patternLength;
+      const rangeIndex = Math.min(patternRepetition, patternFrequencyRanges.length - 1);
+      const patternRange = patternFrequencyRanges[rangeIndex];
+      
+      const rangeSize = patternRange.end - patternRange.start;
+      const subRangeSize = rangeSize / patternLength;
+      const barStart = patternRange.start + (barIndexInPattern * subRangeSize);
+      const barEnd = barStart + subRangeSize;
+      
+      const proportionalBase = fullInitialAmplitudes[i] / maxInitial;
+      
+      mapping.push({
+        start: barStart,
+        end: barEnd,
+        boost: patternRange.boost,
+        proportionalBase: Math.pow(proportionalBase, 0.7), // Make proportions more dramatic
+        name: `${patternRange.name}-bar${barIndexInPattern + 1}`
+      });
     }
-  }, [fullInitialAmplitudes, actualNumBarsToDisplay, initialBarAmplitudes, repetitions]);
+    return mapping;
+  }, [fullInitialAmplitudes, actualNumBarsToDisplay]);
+
+  useEffect(() => {
+    setBarAmplitudes(fullInitialAmplitudes);
+  }, [fullInitialAmplitudes]);
 
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataArrayRef = useRef<Uint8Array | null>(null);
   const animationFrameIdRef = useRef<number | null>(null);
 
   useEffect(() => {
-    // ... (analyser setup remains the same)
     if (audioContext && sourceNode && audioContext.state !== 'closed' && actualNumBarsToDisplay > 0) {
       const newAnalyser = audioContext.createAnalyser();
       newAnalyser.fftSize = fftSize;
-      newAnalyser.smoothingTimeConstant = smoothingTimeConstant; // Analyser's own smoothing
+      newAnalyser.smoothingTimeConstant = smoothingTimeConstant;
       newAnalyser.minDecibels = minDecibels;
       newAnalyser.maxDecibels = maxDecibels;
       const currentSourceNode = sourceNode;
@@ -105,15 +132,12 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
         try { sourceNode.disconnect(analyserRef.current); } catch(e) { /*ignore*/ }
       }
       analyserRef.current = null; dataArrayRef.current = null;
-      if (actualNumBarsToDisplay === 0 && barAmplitudes.length !== 0) {
-         setBarAmplitudes([]);
-      }
     }
-  }, [audioContext, sourceNode, fftSize, smoothingTimeConstant, minDecibels, maxDecibels, actualNumBarsToDisplay, barAmplitudes.length]);
-
+  }, [audioContext, sourceNode, fftSize, smoothingTimeConstant, minDecibels, maxDecibels, actualNumBarsToDisplay]);
 
   const animationLoop = useCallback(() => {
-    if (!analyserRef.current || !dataArrayRef.current || !audioContext || audioContext.state === 'closed' || actualNumBarsToDisplay === 0 || fullInitialAmplitudes.length !== actualNumBarsToDisplay) {
+    if (!analyserRef.current || !dataArrayRef.current || !audioContext || 
+        audioContext.state === 'closed' || actualNumBarsToDisplay === 0) {
       if (animationFrameIdRef.current) cancelAnimationFrame(animationFrameIdRef.current);
       animationFrameIdRef.current = null;
       return;
@@ -122,77 +146,75 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
     analyserRef.current.getByteFrequencyData(dataArrayRef.current);
     const targetAmplitudes = new Array<number>(actualNumBarsToDisplay);
     const frequencyBinCount = analyserRef.current.frequencyBinCount;
-    const spectrumPercentageToUse = 0.60;
-    const relevantMaxBin = Math.floor(frequencyBinCount * spectrumPercentageToUse);
-    const sliceWidth = Math.max(1, relevantMaxBin > 0 ? relevantMaxBin / actualNumBarsToDisplay : 1);
-
+    
     for (let i = 0; i < actualNumBarsToDisplay; i++) {
+      const freqRange = frequencyMapping[i];
+      if (!freqRange) continue;
+      
+      const startBin = Math.floor(frequencyBinCount * freqRange.start);
+      const endBin = Math.floor(frequencyBinCount * freqRange.end);
+      
+      let max = 0;
       let sum = 0;
-      const startBin = Math.floor(i * sliceWidth);
-      const endBin = Math.min(Math.floor((i + 1) * sliceWidth), relevantMaxBin);
-      let countInSlice = 0;
-      if (startBin < endBin && dataArrayRef.current && startBin < dataArrayRef.current.length) {
-        for (let j = startBin; j < endBin; j++) {
-          if (j < dataArrayRef.current.length) { sum += dataArrayRef.current[j]; countInSlice++; }
-        }
+      let count = 0;
+      
+      // Find the loudest frequency in this range
+      for (let j = startBin; j < endBin && j < dataArrayRef.current.length; j++) {
+        const value = dataArrayRef.current[j];
+        sum += value;
+        max = Math.max(max, value);
+        count++;
       }
-      const average = countInSlice > 0 ? sum / countInSlice : 0;
-      const exponent = 0.35;
-      const normalizedAverage = Math.pow(average / 255, exponent) * 255;
-      const audioReactivePart = (normalizedAverage / 255) * audioResponsiveAmplitude;
-
-      targetAmplitudes[i] = (fullInitialAmplitudes[i] || 0) + audioReactivePart;
-      targetAmplitudes[i] = Math.max(fullInitialAmplitudes[i] || 0.5, targetAmplitudes[i]);
+      
+      // Heavy emphasis on peaks for more reactive feel
+      const avg = count > 0 ? sum / count : 0;
+      const blended = (max * 0.8 + avg * 0.2) / 255;  // 80% peak, 20% average
+      
+      // Aggressive response curve
+      const powered = Math.pow(blended, 0.5);  // Square root for expansion
+      const boosted = powered * freqRange.boost;
+      
+      // Apply to amplitude
+      const baseAmplitude = fullInitialAmplitudes[i] || 0;
+      const reactiveComponent = boosted * audioResponsiveAmplitude;
+      const proportionalReactive = reactiveComponent * freqRange.proportionalBase;
+      
+      targetAmplitudes[i] = baseAmplitude + proportionalReactive;
     }
-
+    
     setBarAmplitudes(prevAmplitudes => {
-      // Ensure current visual amplitudes are correctly sourced, especially if prevAmplitudes is not yet populated
-      const currentVisualAmplitudes = (prevAmplitudes && prevAmplitudes.length === actualNumBarsToDisplay)
-          ? prevAmplitudes
-          : fullInitialAmplitudes; // Fallback to fullInitialAmplitudes
-
-      // If lengths still don't match (e.g. fullInitialAmplitudes not ready), directly set target (less smooth for a frame)
-      if (currentVisualAmplitudes.length !== actualNumBarsToDisplay) {
-            if (targetAmplitudes.length === actualNumBarsToDisplay) return targetAmplitudes;
-            return currentVisualAmplitudes; // Or some other safe fallback
-      }
-
-      const smoothedAmplitudes = currentVisualAmplitudes.map((currentAmp, index) => {
-        const targetAmp = targetAmplitudes[index];
-        // Interpolate: current height moves JS_SMOOTHING_FACTOR of the way towards target height each frame
-        return currentAmp + (targetAmp - currentAmp) * JS_SMOOTHING_FACTOR;
+      const currentAmplitudes = prevAmplitudes.length === actualNumBarsToDisplay ? 
+        prevAmplitudes : fullInitialAmplitudes;
+      
+      return currentAmplitudes.map((currentAmp, index) => {
+        const target = targetAmplitudes[index];
+        const diff = target - currentAmp;
+        
+        // Ultra fast smoothing
+        let smoothing;
+        if (Math.abs(diff) > currentAmp * 0.3) {
+          // Big change = instant response
+          smoothing = PEAK_ATTACK;
+        } else if (diff > 0) {
+          smoothing = JS_ATTACK_SMOOTHING;
+        } else {
+          smoothing = JS_DECAY_SMOOTHING;
+        }
+        
+        return currentAmp + (diff * smoothing);
       });
-      return smoothedAmplitudes;
     });
 
     animationFrameIdRef.current = requestAnimationFrame(animationLoop);
-  }, [audioContext, audioResponsiveAmplitude, actualNumBarsToDisplay, fullInitialAmplitudes]); // JS_SMOOTHING_FACTOR is a const, so not needed in deps
+  }, [audioContext, audioResponsiveAmplitude, actualNumBarsToDisplay, fullInitialAmplitudes, frequencyMapping]);
 
   useEffect(() => {
-    if (isPlaying && audioContext && audioContext.state !== 'closed' && sourceNode && analyserRef.current && actualNumBarsToDisplay > 0) {
+    if (isPlaying && audioContext && audioContext.state !== 'closed' && sourceNode && 
+        analyserRef.current && actualNumBarsToDisplay > 0) {
       if (audioContext.state === 'suspended') {
         audioContext.resume().catch(err => console.warn("[Waveform] Resume context error", err));
       }
       if (!animationFrameIdRef.current) {
-        // Ensure barAmplitudes are reset to resting if they were not already, before starting animation.
-        // This helps if audio was paused and amplitudes were high.
-        let allAtRest = true;
-        if (barAmplitudes.length === fullInitialAmplitudes.length) {
-            for(let i=0; i < barAmplitudes.length; i++) {
-                if (Math.abs(barAmplitudes[i] - fullInitialAmplitudes[i]) > 0.1) { // Check if close enough
-                    allAtRest = false;
-                    break;
-                }
-            }
-        } else {
-            allAtRest = false;
-        }
-        if(!allAtRest && barAmplitudes.length === actualNumBarsToDisplay) { // If not at rest and lengths match for smoothing
-             // Let the smoothing take care of it instead of direct set,
-             // or do one direct set to ensure it starts from rest if that's desired.
-             // For now, we let the smoothing loop handle the transition from wherever it was.
-        }
-
         animationFrameIdRef.current = requestAnimationFrame(animationLoop);
       }
     } else {
@@ -200,15 +222,8 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
         cancelAnimationFrame(animationFrameIdRef.current);
         animationFrameIdRef.current = null;
       }
-      // When not playing, gradually return to initial amplitudes IF JS smoothing is active
-      // For now, this effect will directly set to fullInitialAmplitudes if not already there.
-      // To make it smooth back to idle, this part would need its own RAF loop or integrate into the main one.
-      if (actualNumBarsToDisplay > 0 &&
-          (barAmplitudes.length !== fullInitialAmplitudes.length ||
-           !barAmplitudes.every((val, index) => Math.abs(val - fullInitialAmplitudes[index]) < 0.1 ))) { // Check if already at initial
-        setBarAmplitudes(fullInitialAmplitudes); // Direct reset for now when not playing
-      } else if (actualNumBarsToDisplay === 0 && barAmplitudes.length !== 0) {
-        setBarAmplitudes([]);
+      if (!isPlaying && actualNumBarsToDisplay > 0) {
+        setBarAmplitudes(fullInitialAmplitudes);
       }
     }
     return () => {
@@ -217,17 +232,12 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
         animationFrameIdRef.current = null;
       }
     };
-  }, [isPlaying, audioContext, sourceNode, animationLoop, actualNumBarsToDisplay, barAmplitudes, fullInitialAmplitudes]);
+  }, [isPlaying, audioContext, sourceNode, animationLoop, actualNumBarsToDisplay, fullInitialAmplitudes]);
 
   const maxPossibleOverallAmplitude = useMemo(() => {
-    // ... (remains the same)
-    if (fullInitialAmplitudes.length === 0 || initialBarAmplitudes.length === 0) {
-        return audioResponsiveAmplitude > 0 ? audioResponsiveAmplitude : 0.5;
-    }
-    const maxInitial = fullInitialAmplitudes.length > 0 ? Math.max(0.5, ...fullInitialAmplitudes) : 0.5;
-    return maxInitial + audioResponsiveAmplitude;
-  }, [fullInitialAmplitudes, audioResponsiveAmplitude, initialBarAmplitudes]);
-
+    const maxInitial = fullInitialAmplitudes.length > 0 ? Math.max(...fullInitialAmplitudes) : 0.5;
+    return (maxInitial + audioResponsiveAmplitude) * 1.3;
+  }, [fullInitialAmplitudes, audioResponsiveAmplitude]);
 
   const elements: ReactElement[] = [];
   const canRender = actualNumBarsToDisplay > 0 &&
@@ -235,20 +245,32 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
                     (actualNumBarsToDisplay === 1 || spaceBetweenBarsPixelWidths.length === actualNumBarsToDisplay - 1);
 
   if (canRender) {
-    // ... (rendering logic remains the same)
     for (let i = 0; i < actualNumBarsToDisplay; i++) {
-      const initialAmpForBar = fullInitialAmplitudes[i] !== undefined ? fullInitialAmplitudes[i] : 0.5;
-      const currentBarTotalAmplitude = barAmplitudes[i] !== undefined ? barAmplitudes[i] : initialAmpForBar;
+      const amplitude = barAmplitudes[i] || fullInitialAmplitudes[i] || 0;
+      
       elements.push(
         <div
           key={`bar-slot-${i}`}
           className="waveform-bar-slot"
           style={{ width: `${barPixelWidths[i]}px` }}
         >
-          <div className="waveform-reactive-bar" style={{ height: `${currentBarTotalAmplitude}px`, backgroundColor: barColor }} />
-          <div className="waveform-reactive-bar" style={{ height: `${currentBarTotalAmplitude}px`, backgroundColor: barColor }} />
+          <div 
+            className="waveform-reactive-bar" 
+            style={{ 
+              height: `${amplitude}px`, 
+              backgroundColor: barColor
+            }} 
+          />
+          <div 
+            className="waveform-reactive-bar" 
+            style={{ 
+              height: `${amplitude}px`, 
+              backgroundColor: barColor
+            }} 
+          />
         </div>
       );
+      
       if (i < actualNumBarsToDisplay - 1 && i < spaceBetweenBarsPixelWidths.length) {
         elements.push(
           <div
@@ -259,8 +281,6 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
         );
       }
     }
-  } else if (actualNumBarsToDisplay > 0) {
-    console.warn('[Waveform] Prop length mismatch for rendering pixel widths.', {numBars: actualNumBarsToDisplay, barPxWL: barPixelWidths.length, spacePxWL: spaceBetweenBarsPixelWidths.length });
   }
 
   return (
@@ -271,8 +291,14 @@ const AudioReactiveWaveform: React.FC<AudioReactiveWaveformProps> = ({
         width: waveformTotalWidth > 0 ? `${waveformTotalWidth}px` : 'auto',
       }}
     >
-      {elements.length > 0 ? elements : ( actualNumBarsToDisplay > 0 ? <div style={{fontSize: '10px', color: '#777', width: '100%', textAlign: 'center', lineHeight: `${maxPossibleOverallAmplitude * 2}px`}}>Loading...</div>  : null )}
+      {elements.length > 0 ? elements : (
+        actualNumBarsToDisplay > 0 ? 
+        <div style={{fontSize: '10px', color: '#777', width: '100%', textAlign: 'center', 
+                    lineHeight: `${maxPossibleOverallAmplitude * 2}px`}}>Loading...</div> : 
+        null
+      )}
     </div>
   );
 };
+
 export default React.memo(AudioReactiveWaveform);
