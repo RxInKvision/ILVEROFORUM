@@ -57,7 +57,6 @@
         <button class="fullscreen-btn" id="fullscreen-toggle" title="Toggle Fullscreen">⛶</button> 
     </div>
     <div id="virtual-cursor-1" class="virtual-cursor"></div>
-    <div id="virtual-cursor-2" class="virtual-cursor"></div>
 
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <script>
@@ -80,7 +79,7 @@
 
         function sendToSocket(payload) { if (channel) channel.publish('control-message', payload); }
 
-        const THROTTLE_DELAY = 75;
+        const THROTTLE_DELAY = 40; // Ridotto per maggiore fluidità
         const throttledSendCursorMove = throttle((payload) => sendToSocket(payload), THROTTLE_DELAY);
         const throttledSendCameraCommand = throttle((payload) => sendToSocket(payload), THROTTLE_DELAY);
 
@@ -100,7 +99,7 @@
         function calculateDistance(p1,p2) { return Math.sqrt(Math.pow(p2.clientX-p1.clientX,2)+Math.pow(p2.clientY-p1.clientY,2)); }
         function getCentroid(touches) { let sx=0,sy=0; for(const t of touches.values()){sx+=t.clientX;sy+=t.clientY;} return {x:sx/touches.size, y:sy/touches.size};}
 
-        // --- GESTIONE PAD CURSORE ---
+        // --- GESTIONE PAD CURSORE (LOGICA CORRETTA) ---
         if(cursorRectangle){
             let isDragging = false;
             const TAP_MOVE_THRESHOLD = 15;
@@ -111,19 +110,35 @@
                 cursorRectangle.setPointerCapture(e.pointerId);
                 isDragging = false;
                 startPos = { x: e.clientX, y: e.clientY };
+                
+                cursorRectangle.appendChild(virtualCursor1);
+                virtualCursor1.style.display = 'block';
+
                 const rect = cursorRectangle.getBoundingClientRect();
-                sendToSocket({ type: 'pointerdown', x: (e.clientX-rect.left)/rect.width, y: (e.clientY-rect.top)/rect.height });
+                const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+                virtualCursor1.style.left = `${normX * rect.width}px`;
+                virtualCursor1.style.top = `${normY * rect.height}px`;
+                
+                sendToSocket({ type: 'pointerdown', x: normX, y: normY });
             });
 
             cursorRectangle.addEventListener('pointermove', (e) => {
                 if (!cursorRectangle.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
-                if (calculateDistance(e, startPos) > TAP_MOVE_THRESHOLD) isDragging = true;
+                
+                if (!isDragging && calculateDistance(e, startPos) > TAP_MOVE_THRESHOLD) {
+                    isDragging = true;
+                }
+
+                const rect = cursorRectangle.getBoundingClientRect();
+                const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+
+                virtualCursor1.style.left = `${normX * rect.width}px`;
+                virtualCursor1.style.top = `${normY * rect.height}px`;
                 
                 if (isDragging) {
-                    const rect = cursorRectangle.getBoundingClientRect();
-                    const normX = Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
-                    const normY = Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height));
                     throttledSendCursorMove({ type: 'pointermove', x: normX, y: normY });
                 }
             });
@@ -135,19 +150,20 @@
                 sendToSocket({ type: 'click' });
                 sendToSocket({ type: 'pointerup' });
                 try { cursorRectangle.releasePointerCapture(e.pointerId); } catch(err) {}
+                virtualCursor1.style.display = 'none';
             };
             cursorRectangle.addEventListener('pointerup', handleCursorUp);
             cursorRectangle.addEventListener('pointercancel', handleCursorUp);
         }
 
-        // --- GESTIONE PAD 3D (SFERA) - REWRITE ---
+        // --- GESTIONE PAD 3D (REWRITE 2) ---
         if(sphereTouchTarget) {
             const activeTouches = new Map();
             let lastState = { lastOrbitPos: null, lastPinchDist: 0, lastCentroid: null };
             let isDragging = false;
             const TAP_TIME_THRESHOLD = 300;
             const TAP_MOVE_THRESHOLD = 20;
-            const ORBIT_SENSITIVITY = 1.5;
+            const ORBIT_SENSITIVITY = 2.5; // Aumentata sensibilità
             const DOLLY_SENSITIVITY = 0.006;
             const PAN_SENSITIVITY = 1.0;
             const availableLayouts = ["GRID", "RANDOM_3D", "SPHERE_SURFACE", "TUBE"];
@@ -176,7 +192,7 @@
                 e.preventDefault();
                 
                 const currentTouch = activeTouches.get(e.pointerId);
-                if (calculateDistance(e, { clientX: currentTouch.startX, clientY: currentTouch.startY }) > TAP_MOVE_THRESHOLD) {
+                if (!isDragging && calculateDistance(e, { clientX: currentTouch.startX, clientY: currentTouch.startY }) > TAP_MOVE_THRESHOLD) {
                     isDragging = true;
                 }
                 
@@ -191,7 +207,6 @@
                         lastState.lastOrbitPos = { x: e.clientX, y: e.clientY };
                     } else if (activeTouches.size >= 2) {
                         const touches = Array.from(activeTouches.values());
-                        // Dolly (zoom)
                         const newPinchDist = calculateDistance(touches[0], touches[1]);
                         const dollyDelta = newPinchDist - lastState.lastPinchDist;
                         if (Math.abs(dollyDelta) > 0.1) {
@@ -199,7 +214,6 @@
                         }
                         lastState.lastPinchDist = newPinchDist;
 
-                        // Pan
                         const newCentroid = getCentroid(activeTouches);
                         const panDx = newCentroid.x - lastState.lastCentroid.x;
                         const panDy = newCentroid.y - lastState.lastCentroid.y;
