@@ -79,7 +79,7 @@
 
         function sendToSocket(payload) { if (channel) channel.publish('control-message', payload); }
 
-        const THROTTLE_DELAY = 40; 
+        const THROTTLE_DELAY = 40; // Meno ritardo per maggiore fluidità
         const throttledSendCursorMove = throttle((payload) => sendToSocket(payload), THROTTLE_DELAY);
         const throttledSendCameraCommand = throttle((payload) => sendToSocket(payload), THROTTLE_DELAY);
 
@@ -127,8 +127,6 @@
                 if (!cursorRectangle.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
                 
-                // Il flag isDragging è usato solo per decidere se inviare il movimento.
-                // La logica per impostarlo è qui, garantendo che il movimento inizi solo dopo una piccola soglia.
                 if (!isDragging && calculateDistance(e, startPos) > TAP_MOVE_THRESHOLD) {
                     isDragging = true;
                 }
@@ -137,11 +135,9 @@
                 const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                 const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
 
-                // L'aggiornamento visivo è sempre presente per dare feedback immediato.
                 virtualCursor1.style.left = `${normX * rect.width}px`;
                 virtualCursor1.style.top = `${normY * rect.height}px`;
                 
-                // Invia i dati di movimento solo se si sta effettivamente trascinando.
                 if (isDragging) {
                     throttledSendCursorMove({ type: 'pointermove', x: normX, y: normY });
                 }
@@ -151,7 +147,6 @@
                 if (!cursorRectangle.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
                 triggerHapticFeedback(10); 
-                // Il click viene inviato sempre al rilascio.
                 sendToSocket({ type: 'click' });
                 sendToSocket({ type: 'pointerup' });
                 try { cursorRectangle.releasePointerCapture(e.pointerId); } catch(err) {}
