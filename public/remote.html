@@ -100,7 +100,7 @@
         function calculateDistance(p1,p2) { return Math.sqrt(Math.pow(p2.clientX-p1.clientX,2)+Math.pow(p2.clientY-p1.clientY,2)); }
         function getCentroid(touches) { let sx=0,sy=0; for(const t of touches.values()){sx+=t.clientX;sy+=t.clientY;} return {x:sx/touches.size, y:sy/touches.size};}
 
-        // --- GESTIONE PAD CURSORE ---
+        // --- GESTIONE PAD CURSORE (CODICE FORNITO DALL'UTENTE, FUNZIONANTE) ---
         if(cursorRectangle){
             let isDraggingForCursor = false;
             const TAP_MOVE_THRESHOLD_cursorPad = 15;
@@ -109,36 +109,29 @@
             cursorRectangle.addEventListener('pointerdown', (e) => {
                 triggerHapticFeedback(); e.preventDefault();
                 cursorRectangle.setPointerCapture(e.pointerId);
-                isDraggingForCursor = false;
                 startPos = { x: e.clientX, y: e.clientY };
-                
+                isDraggingForCursor = false;
                 cursorRectangle.appendChild(virtualCursor1);
                 virtualCursor1.style.display = 'block';
-
                 const rect = cursorRectangle.getBoundingClientRect();
                 const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                 const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
                 virtualCursor1.style.left = `${normX * rect.width}px`;
                 virtualCursor1.style.top = `${normY * rect.height}px`;
-                
                 sendToSocket({ type: 'pointerdown', x: normX, y: normY });
             });
 
             cursorRectangle.addEventListener('pointermove', (e) => {
                 if (!cursorRectangle.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
-                
-                if (!isDraggingForCursor && calculateDistance(e, startPos) > TAP_MOVE_THRESHOLD_cursorPad) {
+                if (Math.sqrt(Math.pow(e.clientX - startPos.x, 2) + Math.pow(e.clientY - startPos.y, 2)) > TAP_MOVE_THRESHOLD_cursorPad) {
                     isDraggingForCursor = true;
                 }
-
                 const rect = cursorRectangle.getBoundingClientRect();
-                const normX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                const normY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
-
+                const normX = Math.max(0,Math.min(1,(e.clientX-rect.left)/rect.width));
+                const normY = Math.max(0,Math.min(1,(e.clientY-rect.top)/rect.height));
                 virtualCursor1.style.left = `${normX * rect.width}px`;
                 virtualCursor1.style.top = `${normY * rect.height}px`;
-                
                 if (isDraggingForCursor) {
                     throttledSendCursorMove({ type: 'pointermove', x: normX, y: normY });
                 }
@@ -157,13 +150,13 @@
             cursorRectangle.addEventListener('pointercancel', handleCursorUp);
         }
 
-        // --- GESTIONE PAD 3D (LOGICA FUNZIONANTE E OTTIMIZZATA) ---
+        // --- GESTIONE PAD 3D (NUOVA LOGICA OTTIMIZZATA E ISOLATA) ---
         if(sphereTouchTarget) {
-            const activeTouches = new Map();
-            let lastState = { lastOrbitPos: null, lastPinchDist: 0, lastCentroid: null };
-            let isDraggingSphere = false;
-            const TAP_TIME_THRESHOLD = 300;
-            const TAP_MOVE_THRESHOLD = 20;
+            const sphere_activeTouches = new Map();
+            let sphere_lastState = { lastOrbitPos: null, lastPinchDist: 0, lastCentroid: null };
+            let sphere_isDragging = false;
+            const SPHERE_TAP_TIME_THRESHOLD = 300;
+            const SPHERE_TAP_MOVE_THRESHOLD = 20;
             const ORBIT_SENSITIVITY = 2.5; 
             const DOLLY_SENSITIVITY = 0.006;
             const PAN_SENSITIVITY = 1.0;
@@ -173,72 +166,72 @@
             sphereTouchTarget.addEventListener('pointerdown', (e) => {
                 triggerHapticFeedback(); e.preventDefault();
                 sphereTouchTarget.setPointerCapture(e.pointerId);
-                activeTouches.set(e.pointerId, { 
+                sphere_activeTouches.set(e.pointerId, { 
                     clientX: e.clientX, clientY: e.clientY, 
                     startTime: Date.now(), startX: e.clientX, startY: e.clientY 
                 });
-                isDraggingSphere = false;
-                if (activeTouches.size === 1) {
-                    lastState.lastOrbitPos = { x: e.clientX, y: e.clientY };
+                sphere_isDragging = false;
+                if (sphere_activeTouches.size === 1) {
+                    sphere_lastState.lastOrbitPos = { x: e.clientX, y: e.clientY };
                 }
-                if (activeTouches.size >= 2) {
-                    const touches = Array.from(activeTouches.values());
-                    lastState.lastPinchDist = calculateDistance(touches[0], touches[1]);
-                    lastState.lastCentroid = getCentroid(activeTouches);
+                if (sphere_activeTouches.size >= 2) {
+                    const touches = Array.from(sphere_activeTouches.values());
+                    sphere_lastState.lastPinchDist = calculateDistance(touches[0], touches[1]);
+                    sphere_lastState.lastCentroid = getCentroid(sphere_activeTouches);
                 }
             });
 
             sphereTouchTarget.addEventListener('pointermove', (e) => {
-                if (!activeTouches.has(e.pointerId)) return;
+                if (!sphere_activeTouches.has(e.pointerId)) return;
                 e.preventDefault();
                 
-                const currentTouch = activeTouches.get(e.pointerId);
-                if (!isDraggingSphere && calculateDistance(e, { clientX: currentTouch.startX, clientY: currentTouch.startY }) > TAP_MOVE_THRESHOLD) {
-                    isDraggingSphere = true;
+                const currentTouch = sphere_activeTouches.get(e.pointerId);
+                if (!sphere_isDragging && calculateDistance(e, { clientX: currentTouch.startX, clientY: currentTouch.startY }) > SPHERE_TAP_MOVE_THRESHOLD) {
+                    sphere_isDragging = true;
                 }
                 
                 currentTouch.clientX = e.clientX;
                 currentTouch.clientY = e.clientY;
 
-                if (isDraggingSphere) {
-                    if (activeTouches.size === 1) {
-                        const dx = e.clientX - lastState.lastOrbitPos.x;
-                        const dy = e.clientY - lastState.lastOrbitPos.y;
+                if (sphere_isDragging) {
+                    if (sphere_activeTouches.size === 1) {
+                        const dx = e.clientX - sphere_lastState.lastOrbitPos.x;
+                        const dy = e.clientY - sphere_lastState.lastOrbitPos.y;
                         throttledSendCameraCommand({ type: 'cameraCommand', command: 'orbit', dx: dx * ORBIT_SENSITIVITY, dy: dy * ORBIT_SENSITIVITY });
-                        lastState.lastOrbitPos = { x: e.clientX, y: e.clientY };
-                    } else if (activeTouches.size >= 2) {
-                        const touches = Array.from(activeTouches.values());
+                        sphere_lastState.lastOrbitPos = { x: e.clientX, y: e.clientY };
+                    } else if (sphere_activeTouches.size >= 2) {
+                        const touches = Array.from(sphere_activeTouches.values());
                         const newPinchDist = calculateDistance(touches[0], touches[1]);
-                        const dollyDelta = newPinchDist - lastState.lastPinchDist;
+                        const dollyDelta = newPinchDist - sphere_lastState.lastPinchDist;
                         if (Math.abs(dollyDelta) > 0.1) {
                             throttledSendCameraCommand({ type: 'cameraCommand', command: 'dolly', value: -dollyDelta * DOLLY_SENSITIVITY });
                         }
-                        lastState.lastPinchDist = newPinchDist;
+                        sphere_lastState.lastPinchDist = newPinchDist;
 
-                        const newCentroid = getCentroid(activeTouches);
-                        const panDx = newCentroid.x - lastState.lastCentroid.x;
-                        const panDy = newCentroid.y - lastState.lastCentroid.y;
+                        const newCentroid = getCentroid(sphere_activeTouches);
+                        const panDx = newCentroid.x - sphere_lastState.lastCentroid.x;
+                        const panDy = newCentroid.y - sphere_lastState.lastCentroid.y;
                         if (Math.abs(panDx) > 0.1 || Math.abs(panDy) > 0.1) {
                             throttledSendCameraCommand({ type: 'cameraCommand', command: 'pan', dx: panDx * PAN_SENSITIVITY, dy: panDy * PAN_SENSITIVITY });
                         }
-                        lastState.lastCentroid = newCentroid;
+                        sphere_lastState.lastCentroid = newCentroid;
                     }
                 }
             });
 
             const handleNavEnd = (e) => {
-                if (!activeTouches.has(e.pointerId)) return;
+                if (!sphere_activeTouches.has(e.pointerId)) return;
                 
-                const touchData = activeTouches.get(e.pointerId);
-                const isTap = !isDraggingSphere && (Date.now() - touchData.startTime < TAP_TIME_THRESHOLD);
+                const touchData = sphere_activeTouches.get(e.pointerId);
+                const isTap = !sphere_isDragging && (Date.now() - touchData.startTime < SPHERE_TAP_TIME_THRESHOLD);
 
-                if (isTap && activeTouches.size === 1) {
+                if (isTap && sphere_activeTouches.size === 1) {
                     triggerHapticFeedback(20);
                     currentLayoutIndex = (currentLayoutIndex + 1) % availableLayouts.length;
                     sendToSocket({ type: 'appCommand', command: 'setLayout', value: availableLayouts[currentLayoutIndex] });
                 }
 
-                activeTouches.delete(e.pointerId);
+                sphere_activeTouches.delete(e.pointerId);
                 try { sphereTouchTarget.releasePointerCapture(e.pointerId); } catch(err) {}
             };
             sphereTouchTarget.addEventListener('pointerup', handleNavEnd);
