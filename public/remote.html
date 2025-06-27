@@ -57,6 +57,7 @@
         <button class="fullscreen-btn" id="fullscreen-toggle" title="Toggle Fullscreen">⛶</button> 
     </div>
     <div id="virtual-cursor-1" class="virtual-cursor"></div>
+    <div id="virtual-cursor-2" class="virtual-cursor"></div>
 
     <script src="https://cdn.ably.com/lib/ably.min-1.js"></script>
     <script>
@@ -101,14 +102,14 @@
 
         // --- GESTIONE PAD CURSORE ---
         if(cursorRectangle){
-            let isDragging = false;
-            const TAP_MOVE_THRESHOLD = 15; // Corretto l'uso di questa variabile
+            let isDraggingForCursor = false;
+            const TAP_MOVE_THRESHOLD_cursorPad = 15;
             let startPos = { x: 0, y: 0 };
             
             cursorRectangle.addEventListener('pointerdown', (e) => {
                 triggerHapticFeedback(); e.preventDefault();
                 cursorRectangle.setPointerCapture(e.pointerId);
-                isDragging = false;
+                isDraggingForCursor = false;
                 startPos = { x: e.clientX, y: e.clientY };
                 
                 cursorRectangle.appendChild(virtualCursor1);
@@ -127,8 +128,8 @@
                 if (!cursorRectangle.hasPointerCapture(e.pointerId)) return;
                 e.preventDefault();
                 
-                if (!isDragging && calculateDistance(e, startPos) > TAP_MOVE_THRESHOLD) {
-                    isDragging = true;
+                if (!isDraggingForCursor && calculateDistance(e, startPos) > TAP_MOVE_THRESHOLD_cursorPad) {
+                    isDraggingForCursor = true;
                 }
 
                 const rect = cursorRectangle.getBoundingClientRect();
@@ -138,7 +139,7 @@
                 virtualCursor1.style.left = `${normX * rect.width}px`;
                 virtualCursor1.style.top = `${normY * rect.height}px`;
                 
-                if (isDragging) {
+                if (isDraggingForCursor) {
                     throttledSendCursorMove({ type: 'pointermove', x: normX, y: normY });
                 }
             });
@@ -156,11 +157,11 @@
             cursorRectangle.addEventListener('pointercancel', handleCursorUp);
         }
 
-        // --- GESTIONE PAD 3D ---
+        // --- GESTIONE PAD 3D (LOGICA FUNZIONANTE E OTTIMIZZATA) ---
         if(sphereTouchTarget) {
             const activeTouches = new Map();
             let lastState = { lastOrbitPos: null, lastPinchDist: 0, lastCentroid: null };
-            let isDragging = false;
+            let isDraggingSphere = false;
             const TAP_TIME_THRESHOLD = 300;
             const TAP_MOVE_THRESHOLD = 20;
             const ORBIT_SENSITIVITY = 2.5; 
@@ -176,7 +177,7 @@
                     clientX: e.clientX, clientY: e.clientY, 
                     startTime: Date.now(), startX: e.clientX, startY: e.clientY 
                 });
-                isDragging = false;
+                isDraggingSphere = false;
                 if (activeTouches.size === 1) {
                     lastState.lastOrbitPos = { x: e.clientX, y: e.clientY };
                 }
@@ -192,14 +193,14 @@
                 e.preventDefault();
                 
                 const currentTouch = activeTouches.get(e.pointerId);
-                if (!isDragging && calculateDistance(e, { clientX: currentTouch.startX, clientY: currentTouch.startY }) > TAP_MOVE_THRESHOLD) {
-                    isDragging = true;
+                if (!isDraggingSphere && calculateDistance(e, { clientX: currentTouch.startX, clientY: currentTouch.startY }) > TAP_MOVE_THRESHOLD) {
+                    isDraggingSphere = true;
                 }
                 
                 currentTouch.clientX = e.clientX;
                 currentTouch.clientY = e.clientY;
 
-                if (isDragging) {
+                if (isDraggingSphere) {
                     if (activeTouches.size === 1) {
                         const dx = e.clientX - lastState.lastOrbitPos.x;
                         const dy = e.clientY - lastState.lastOrbitPos.y;
@@ -229,7 +230,7 @@
                 if (!activeTouches.has(e.pointerId)) return;
                 
                 const touchData = activeTouches.get(e.pointerId);
-                const isTap = !isDragging && (Date.now() - touchData.startTime < TAP_TIME_THRESHOLD);
+                const isTap = !isDraggingSphere && (Date.now() - touchData.startTime < TAP_TIME_THRESHOLD);
 
                 if (isTap && activeTouches.size === 1) {
                     triggerHapticFeedback(20);
